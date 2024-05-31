@@ -1,21 +1,21 @@
 #ifndef PLAZZA_PROJECT_IPC_HPP
 #define PLAZZA_PROJECT_IPC_HPP
 
+#include <unistd.h>
+#include <stdexcept>
 #include <string>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 
 class IPC {
 private:
-    std::queue<std::string> messageQueue;
-    std::mutex queueMutex;
-    std::condition_variable queueCondVar;
+    int pipefd[2]; // 0: read end, 1: write end
 
 public:
     IPC();
-    void sendMessage(const std::string& message);
-    std::string receiveMessage();
+    ~IPC();
+    int getReadFd() const;
+    int getWriteFd() const;
+    IPC& operator<<(const std::string& data);
+    IPC& operator>>(std::string& data);
 };
 
 #endif //PLAZZA_PROJECT_IPC_HPP

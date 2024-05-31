@@ -16,7 +16,8 @@ public:
     IngredientStock(int replenishTimeMs);
     void replenishStock();
     bool useIngredients(const std::vector<std::string>& ingredients);
-    std::string getStatus(); // New method to get ingredient stock status
+    std::string getStatus();
+    int getReplenishTime() const;
 };
 
 #endif //PLAZZA_PROJECT_INGREDIENTSTOCK_HPP

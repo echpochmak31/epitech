@@ -23,6 +23,10 @@ public:
     int quantity;
 
     Pizza(PizzaType t, PizzaSize s, int q);
+    PizzaType getType() const;
+    PizzaSize getSize() const;
+    int getQuantity() const;
+
 };
 
 #endif //PLAZZA_PROJECT_PIZZA_HPP

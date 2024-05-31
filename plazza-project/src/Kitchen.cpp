@@ -1,9 +1,8 @@
 #include "Kitchen.hpp"
 #include <sstream>
 #include <iostream>
-#include <vector>
-#include <string>
 #include <unistd.h>
+#include <stdexcept>
 
 Kitchen::Kitchen(int numCooks, int replenishTime)
     : stock(replenishTime), maxPizzaCapacity(2 * numCooks), isActive(true) {
@@ -11,6 +10,7 @@ Kitchen::Kitchen(int numCooks, int replenishTime)
         cooks.push_back(Cook());
     }
     replenishThread = std::thread(&Kitchen::replenishStock, this);
+    lastActiveTime = std::chrono::steady_clock::now();
 }
 
 Kitchen::~Kitchen() {
@@ -21,9 +21,20 @@ Kitchen::~Kitchen() {
 }
 
 bool Kitchen::assignPizza(Pizza pizza) {
+    int busyCooks = 0;
+    for (auto& cook : cooks) {
+        if (cook.cookThread.joinable()) {
+            ++busyCooks;
+        }
+    }
+    if (busyCooks >= maxPizzaCapacity) {
+        return false;
+    }
+
     for (auto& cook : cooks) {
         if (!cook.cookThread.joinable()) {
             cook.startCooking(pizza, stock, 1.0); // todo: remove hardcode
+            lastActiveTime = std::chrono::steady_clock::now();
             return true;
         }
     }
@@ -37,24 +48,29 @@ void Kitchen::replenishStock() {
 }
 
 void Kitchen::run(int writeFd) {
-    char buffer[256];
+    std::thread messageThread(&Kitchen::handleMessages, this);
+    messageThread.join();
+}
+
+void Kitchen::handleMessages() {
     while (isActive) {
-        ssize_t bytesRead = read(STDIN_FILENO, buffer, sizeof(buffer) - 1); // Read commands from the pipe
-        if (bytesRead > 0) {
-            buffer[bytesRead] = '\0';
-            std::string command(buffer);
-            if (command == "status\n") {
-                std::string status = getStatus();
-                write(writeFd, status.c_str(), status.size()); // Write status to the pipe
-            } else {
-                std::vector<Pizza> pizzas = parseOrder(command);
-                for (const auto& pizza : pizzas) {
-                    if (!assignPizza(pizza)) {
-                        std::cerr << "Error: No available cooks to handle the order." << std::endl;
-                    }
+        std::string message;
+        ipc >> message;
+        if (message == "shutdown") {
+            isActive = false;
+        } else if (message == "status") {
+            std::string status = getStatus();
+            ipc << status;
+        } else {
+            std::vector<Pizza> pizzas = parseOrder(message);
+            for (const auto& pizza : pizzas) {
+                if (!assignPizza(pizza)) {
+                    std::cerr << "Error: No available cooks to handle the order." << std::endl;
                 }
             }
-        } else {
+        }
+
+        if (std::chrono::steady_clock::now() - lastActiveTime > std::chrono::seconds(5)) {
             isActive = false;
         }
     }

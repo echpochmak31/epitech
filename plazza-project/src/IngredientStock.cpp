@@ -15,10 +15,12 @@ IngredientStock::IngredientStock(int replenishTimeMs) : replenishTime(replenishT
 }
 
 void IngredientStock::replenishStock() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(replenishTime));
-    std::lock_guard<std::mutex> lock(stockMutex);
-    for (auto &ingredient : stock) {
-        ingredient.second += 1;
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(replenishTime));
+        std::lock_guard<std::mutex> lock(stockMutex);
+        for (auto &ingredient : stock) {
+            ingredient.second += 1;
+        }
     }
 }
 
@@ -42,4 +44,8 @@ std::string IngredientStock::getStatus() {
         status << "  " << ingredient.first << ": " << ingredient.second << "\n";
     }
     return status.str();
+}
+
+int IngredientStock::getReplenishTime() const {
+    return replenishTime;
 }
