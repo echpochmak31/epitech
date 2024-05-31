@@ -25,7 +25,6 @@ void Reception::createNewKitchen() {
         close(ipc->getWriteFd()); // Close the write end after running the kitchen
         exit(0); // Exit child process after kitchen run
     } else { // Parent process
-        close(ipc->getWriteFd()); // Close the write end
         kitchenPIDs.push_back(pid);
         kitchenPipes.push_back(ipc); // Store the IPC object for communication
     }

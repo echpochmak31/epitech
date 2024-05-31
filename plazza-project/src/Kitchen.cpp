@@ -70,7 +70,7 @@ void Kitchen::handleMessages() {
             }
         }
 
-        if (std::chrono::steady_clock::now() - lastActiveTime > std::chrono::seconds(5)) {
+        if (std::chrono::steady_clock::now() - lastActiveTime > std::chrono::seconds(5)) { // todo: remove hardcode
             isActive = false;
         }
     }
