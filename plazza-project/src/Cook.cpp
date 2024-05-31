@@ -37,6 +37,8 @@ int Cook::getCookTime(PizzaType type, float cookTimeMultiplier) {
             baseTime = 1000;
             break;
         case Regina:
+            baseTime = 2000;
+            break;
         case Americana:
             baseTime = 2000;
             break;

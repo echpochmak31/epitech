@@ -1,4 +1,7 @@
 #include <iostream>
+#include <unistd.h> // for fork, pipe, close
+#include <sys/types.h> // for pid_t
+#include <sys/wait.h> // for wait
 #include "Reception.hpp"
 
 int main(int argc, char* argv[]) {
@@ -11,22 +14,40 @@ int main(int argc, char* argv[]) {
     int numCooks = std::stoi(argv[2]);
     int replenishTime = std::stoi(argv[3]);
 
-    Reception reception(numCooks, replenishTime, cookingTimeMultiplier);
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        return 1;
+    }
 
-    std::string command;
-    while (true) {
-        std::cout << "Enter command: ";
-        std::getline(std::cin, command);
-        if (command == "exit") {
-            break;
-        } else if (command == "status") {
-            auto statuses = reception.getKitchenStatuses();
-            for (const auto& status : statuses) {
-                std::cout << status << "\n";
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        return 1;
+    }
+
+    if (pid == 0) { // Child process
+        close(pipefd[0]); // Close the read end
+        std::string command;
+        while (true) {
+            std::cout << "Enter command: ";
+            std::getline(std::cin, command);
+            command += '\n'; // Add newline to match the delimiter used in parent process
+            if (write(pipefd[1], command.c_str(), command.size()) == -1) {
+                perror("write");
+                break;
             }
-        } else {
-            reception.handleOrder(command);
+            if (command == "exit\n") {
+                break;
+            }
         }
+        close(pipefd[1]); // Close the write end
+    } else { // Parent process
+        close(pipefd[1]); // Close the write end
+        Reception reception(numCooks, replenishTime, cookingTimeMultiplier);
+        reception.handleCommands(pipefd[0]);
+        close(pipefd[0]); // Close the read end
+        wait(nullptr); // Wait for the child process to finish
     }
 
     return 0;

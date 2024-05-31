@@ -3,13 +3,13 @@
 
 #include <vector>
 #include <string>
-#include <memory>
+#include <sys/types.h> // for pid_t
 #include "Pizza.hpp"
-#include "Kitchen.hpp"
 
 class Reception {
 private:
-    std::vector<std::shared_ptr<Kitchen>> kitchens;
+    std::vector<pid_t> kitchenPIDs; // Store PIDs of kitchen processes
+    std::vector<int> kitchenPipes; // Store pipe file descriptors for communication
     int numCooks;
     int replenishTime;
     float cookTimeMultiplier;
@@ -21,8 +21,8 @@ public:
     std::vector<Pizza> parseOrder(const std::string& order);
     PizzaType getPizzaType(const std::string& type);
     PizzaSize getPizzaSize(const std::string& size);
-    std::vector<std::string> getKitchenStatuses();
+    void printStatus();
+    void handleCommands(int readFd); // handle commands from the pipe
 };
-
 
 #endif //PLAZZA_PROJECT_RECEPTION_HPP

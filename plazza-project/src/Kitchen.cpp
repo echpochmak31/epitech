@@ -3,9 +3,10 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <unistd.h>
 
 Kitchen::Kitchen(int numCooks, int replenishTime)
-        : stock(replenishTime), maxPizzaCapacity(2 * numCooks), isActive(true) {
+    : stock(replenishTime), maxPizzaCapacity(2 * numCooks), isActive(true) {
     for (int i = 0; i < numCooks; ++i) {
         cooks.push_back(Cook());
     }
@@ -22,7 +23,7 @@ Kitchen::~Kitchen() {
 bool Kitchen::assignPizza(Pizza pizza) {
     for (auto& cook : cooks) {
         if (!cook.cookThread.joinable()) {
-            cook.startCooking(pizza, stock, 1.0); // Assuming default multiplier of 1.0 for now
+            cook.startCooking(pizza, stock, 1.0); // todo: remove hardcode
             return true;
         }
     }
@@ -35,18 +36,26 @@ void Kitchen::replenishStock() {
     }
 }
 
-void Kitchen::run() {
+void Kitchen::run(int writeFd) {
+    char buffer[256];
     while (isActive) {
-        std::string message = ipc.receiveMessage();
-        if (message == "shutdown") {
-            isActive = false;
-        } else {
-            std::vector<Pizza> pizzas = parseOrder(message);
-            for (const auto& pizza : pizzas) {
-                if (!assignPizza(pizza)) {
-                    std::cerr << "Error: No available cooks to handle the order." << std::endl;
+        ssize_t bytesRead = read(STDIN_FILENO, buffer, sizeof(buffer) - 1); // Read commands from the pipe
+        if (bytesRead > 0) {
+            buffer[bytesRead] = '\0';
+            std::string command(buffer);
+            if (command == "status\n") {
+                std::string status = getStatus();
+                write(writeFd, status.c_str(), status.size()); // Write status to the pipe
+            } else {
+                std::vector<Pizza> pizzas = parseOrder(command);
+                for (const auto& pizza : pizzas) {
+                    if (!assignPizza(pizza)) {
+                        std::cerr << "Error: No available cooks to handle the order." << std::endl;
+                    }
                 }
             }
+        } else {
+            isActive = false;
         }
     }
 }
@@ -58,9 +67,8 @@ std::string Kitchen::getStatus() {
     for (size_t i = 0; i < cooks.size(); ++i) {
         status << "  Cook " << i + 1 << ": " << (cooks[i].cookThread.joinable() ? "Busy" : "Available") << "\n";
     }
-    // Add ingredient stock status
     status << "Ingredient Stock:\n";
-    status << stock.getStatus(); // Implemented method in IngredientStock class
+    status << stock.getStatus();
 
     return status.str();
 }
@@ -75,6 +83,9 @@ std::vector<Pizza> Kitchen::parseOrder(const std::string& message) {
         std::string size;
         std::string quantity;
         tokenStream >> type >> size >> quantity;
+        if (type.empty() || size.empty() || quantity.empty() || quantity[0] != 'x') {
+            throw std::invalid_argument("Order format is invalid");
+        }
         PizzaType pizzaType = getPizzaType(type);
         PizzaSize pizzaSize = getPizzaSize(size);
         int qty = std::stoi(quantity.substr(1));

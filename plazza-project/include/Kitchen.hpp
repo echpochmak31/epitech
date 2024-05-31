@@ -23,7 +23,7 @@ public:
     ~Kitchen();
     bool assignPizza(Pizza pizza);
     void replenishStock();
-    void run();
+    void run(int writeFd); // Pass the write end of the pipe to the kitchen
     std::string getStatus();
     std::vector<Pizza> parseOrder(const std::string& message); // New method to parse orders
     PizzaType getPizzaType(const std::string& type); // Helper method to get PizzaType from string
