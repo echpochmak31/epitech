@@ -76,7 +76,7 @@ public:
 
     }
 
-    void notifyStop() {
+    void dispose() override {
         stopFlag = true;
         cv.notify_all();
     }

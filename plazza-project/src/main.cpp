@@ -7,8 +7,8 @@
 
 
 int main() {
-    // std::shared_ptr<IMessageBus> messageBus = std::make_shared<KernelQueueMessageBus>();
-    auto messageBus = std::make_shared<KernelQueueMessageBus>();
+    std::shared_ptr<IMessageBus> messageBus = std::make_shared<KernelQueueMessageBus>();
+    // auto messageBus = std::make_shared<KernelQueueMessageBus>();
 
     std::string sender = "some sender";
     std::string routingKey = "routingKey1";
@@ -29,7 +29,7 @@ int main() {
     messageBus->subscribe(routingKey, callback2);
 
     // Start the message handling in a separate thread
-    std::thread handlerThread(&KernelQueueMessageBus::runMessageHandling, messageBus.get());
+    std::thread handlerThread(&IMessageBus::runMessageHandling, messageBus.get());
     std::cout << "ok\n";
 
     auto msg = std::make_shared<IpcMessage>(IpcMessageType::UNKNOWN, sender, routingKey);
@@ -38,7 +38,7 @@ int main() {
     std::cout << "done\n";
 
     // Set the stop flag to true and notify the condition variable
-    messageBus->notifyStop();
+    messageBus->dispose();
 
     // Join the handler thread
     handlerThread.join();
