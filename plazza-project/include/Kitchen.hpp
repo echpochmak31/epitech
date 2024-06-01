@@ -7,38 +7,30 @@
 #include <thread>
 #include <chrono>
 #include "Cook.hpp"
-#include "Pizza.hpp"
 #include "ipc/IMessageBus.hpp"
 
 class Kitchen {
-private:
-    std::string kitchenIpcAddress;
-    std::string receptionIpcAddress;
+protected:
+    std::string ipcAddress;
     std::shared_ptr<IMessageBus> messageBus;
+
     std::vector<Cook> cooks;
 
     std::atomic<bool> _isAvailable;
     const int idleTimeoutInSeconds;
     std::chrono::steady_clock::time_point lastActiveTime;
     std::thread monitoringThread;
-    std::thread receivingThread; // Separate thread for receiving messages
-
-    void dispose();
-    void onMessageReceived(const std::shared_ptr<IpcMessage>& ipcMessage);
-    void runReceivingThread(); // Separate method for the receiving thread
 
 public:
-    Kitchen(std::string kitchenIpcAddress, std::string receptionIpcAddress, std::shared_ptr<IMessageBus> messageBus, int numCooks, int replenishTime, int idleTimeoutInSeconds);
+    Kitchen(std::string ipcAddress, std::shared_ptr<IMessageBus> messageBus, int numCooks, int idleTimeoutInSeconds);
+
     ~Kitchen();
 
-    void onPizzaIsReady(Cook& cook, Pizza& pizza);
-    void runMonitoringThread();
-    void runKitchen();
-    bool isAvailable(); // true if can accept orders
+    void handleMessage(std::shared_ptr<IpcMessage> &message);
 
-    int countAvailableCooks() const;
-    int getCooksNumber();
-    int getReplenishTime();
+    void runMonitoringThread();
+
+    bool isAvailable(); // true if can accept orders
 };
 
 #endif //PLAZZA_PROJECT_KITCHEN_HPP

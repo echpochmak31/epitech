@@ -31,7 +31,7 @@ public:
         std::getline(iss, sender, ':');
         std::getline(iss, routingKey, ':');
         std::getline(iss, typeStr);
-        IpcMessageType type = IpcMessageType::UNKNOWN; // Modify this to properly parse the typeStr into IpcMessageType
+        IpcMessageType type = IpcMessageType::fromString(typeStr);
 
         return std::make_shared<IpcMessage>(type, sender, routingKey);
     }
