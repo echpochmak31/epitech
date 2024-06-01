@@ -9,10 +9,12 @@
 #include <cstring>
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 
 class KernelQueueMessageBus : public IMessageBus {
 protected:
     std::unordered_map<std::string, std::function<void(std::shared_ptr<IpcMessage> &message)>> callbacks;
+
 public:
     KernelQueueMessageBus() {
         key = ftok("progfile", 65);
@@ -44,10 +46,14 @@ public:
     }
 
     void runMessageHandling() override {
-        while (true) {
+        while (!stopFlag) {
             message_buf msg;
             if (msgrcv(msgid, &msg, sizeof(msg.mtext), 0, 0) == -1) {
-                throw std::runtime_error("Failed to receive message");
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("Failed to receive message");
+                }
             }
 
             std::string serializedMessage(msg.mtext);
@@ -61,8 +67,14 @@ public:
             }
         }
     }
-    void subscribe(std::string &receiver, std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
+
+    void subscribe(const std::string &receiver, std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
         callbacks[receiver] = callback;
+    }
+
+    void notifyStop() {
+        stopFlag = true;
+        cv.notify_all();
     }
 
 private:
@@ -73,8 +85,9 @@ private:
 
     key_t key;
     int msgid;
-    std::mutex mtx; // Single mutex for all operations
+    std::mutex mtx;
     std::condition_variable cv;
+    std::atomic<bool> stopFlag{false}; // Atomic flag to stop the message handling loop
 };
 
 #endif // KERNELQUEUEMESSAGEBUS_HPP
