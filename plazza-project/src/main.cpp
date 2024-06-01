@@ -1,53 +1,49 @@
+#include <algorithm>
 #include <iostream>
-#include <unistd.h> // for fork, pipe, close
-#include <sys/types.h> // for pid_t
-#include <sys/wait.h> // for wait
-#include "Reception.hpp"
+#include <memory>
+#include "Kitchen.hpp"
+#include "ipc/KernelQueueMessageBus.hpp"
+#include <unistd.h>
 
-int main(int argc, char* argv[]) {
-    if (argc != 4) {
-        std::cerr << "Usage: " << argv[0] << " <cooking_time_multiplier> <num_cooks> <replenish_time>" << std::endl;
-        return 1;
-    }
+int main() {
+    auto messageBus = std::make_shared<KernelQueueMessageBus>();
+    auto kitchenAddr = "kitchen1";
+    auto receptionAddr = "reception";
 
-    float cookingTimeMultiplier = std::stof(argv[1]);
-    int numCooks = std::stoi(argv[2]);
-    int replenishTime = std::stoi(argv[3]);
+    messageBus->registerReceiver(kitchenAddr);
+    messageBus->registerReceiver(receptionAddr);
 
-    int pipefd[2];
-    if (pipe(pipefd) == -1) {
-        perror("pipe");
-        return 1;
-    }
+    Kitchen kitchen(kitchenAddr, receptionAddr, messageBus, 3, 10, 2);
 
+    // Fork process for kitchen
     pid_t pid = fork();
-    if (pid == -1) {
-        perror("fork");
-        return 1;
-    }
-
-    if (pid == 0) { // Child process
-        close(pipefd[0]); // Close the read end
-        std::string command;
+    if (pid == 0) {
+        // Child process
+        // std::this_thread::sleep_for(std::chrono::seconds(10)); // Simulate some delay to trigger idle timeout
+        exit(0);
+    } else if (pid > 0) {
+        // Parent process
+        std::cout << "Kitchen process started with PID: " << pid << std::endl;
         while (true) {
-            std::cout << "Enter command: ";
-            std::getline(std::cin, command);
-            command += '\n'; // Add newline to match the delimiter used in parent process
-            if (write(pipefd[1], command.c_str(), command.size()) == -1) {
-                perror("write");
+            // auto pollMsgRequest = std::make_shared<IpcMessage>(IpcMessageType::GET_KITCHEN_STATUS, receptionAddr, kitchenAddr);
+            // messageBus->send(pollMsgRequest);
+
+            // std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate some delay
+            auto pollMsgResponse = messageBus->receive(receptionAddr);
+            if (pollMsgResponse != nullptr) {
+                std::cout << pollMsgResponse->getMessageType().toString() << std::endl;
                 break;
             }
-            if (command == "exit\n") {
-                break;
-            }
+
+            // std::cout << pollMsgResponse->getMessageType().toString() << "\n";
+            // std::cout << "Kitchen availability: " << kitchen. << std::endl;
+            // std::this_thread::sleep_for(std::chrono::seconds(1)); // Simulate some delay
+            // break;
         }
-        close(pipefd[1]); // Close the write end
-    } else { // Parent process
-        close(pipefd[1]); // Close the write end
-        Reception reception(numCooks, replenishTime, cookingTimeMultiplier);
-        reception.handleCommands(pipefd[0]);
-        close(pipefd[0]); // Close the read end
-        wait(nullptr); // Wait for the child process to finish
+    } else {
+        // Fork failed
+        std::cerr << "Failed to fork process for kitchen." << std::endl;
+        return 1;
     }
 
     return 0;

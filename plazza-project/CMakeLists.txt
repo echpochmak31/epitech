@@ -12,6 +12,14 @@ add_executable(plazza_project src/main.cpp
         src/Kitchen.cpp
         src/Reception.cpp
         src/Pizza.cpp
+        include/KitchenPool.hpp
+        src/KitchenPool.cpp
+        include/ipc/IpcMessageType.hpp
+        include/ipc/IpcMessage.hpp
+        src/ipc/IpcMessage.cpp
+        src/ipc/IpcMessageType.cpp
+        include/ipc/IMessageBus.hpp
+        include/ipc/KernelQueueMessageBus.hpp
 )
 
 
