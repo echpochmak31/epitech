@@ -28,7 +28,7 @@ public:
         msgctl(msgid, IPC_RMID, nullptr);
     }
 
-    void send(const std::shared_ptr<IpcMessage>& message) override {
+    void publish(const std::shared_ptr<IpcMessage>& message) override {
         std::lock_guard<std::mutex> lock(mtx); // Lock for send operations
 
         std::cout << "SENDING " + message->toString() << std::endl;
@@ -61,15 +61,19 @@ public:
 
             std::cout << "DESERIALIZED " + message->toString() << std::endl;
 
-            std::string receiver = message->getReceiver();
-            if (callbacks.find(receiver) != callbacks.end()) {
-                callbacks[receiver](message);
+            std::string routingKey = message->getRoutingKey();
+            if (callbacks.find(routingKey) != callbacks.end()) {
+                callbacks[routingKey](message);
             }
         }
     }
 
-    void subscribe(const std::string &receiver, std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
-        callbacks[receiver] = callback;
+    void subscribe(const std::string &routingKey, std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
+        callbacks[routingKey] = callback;
+    }
+
+    void subscribe(std::shared_ptr<ISubscriber> subscriber) override {
+
     }
 
     void notifyStop() {

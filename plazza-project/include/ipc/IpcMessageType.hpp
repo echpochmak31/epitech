@@ -8,8 +8,6 @@ class IpcMessageType {
 public:
     enum Value : uint8_t {
         UNKNOWN,
-        COUNT_BUSY_COOKS_REQUEST,
-        COUNT_BUSY_COOKS_RESPONSE,
         CLOSE_KITCHEN,
         GET_KITCHEN_STATUS,
         KITCHEN_AVAILABLE,

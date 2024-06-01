@@ -10,43 +10,42 @@ class IpcMessage {
 protected:
     IpcMessageType type;
     std::string sender;
-    std::string receiver;
+    std::string routingKey;
 
 public:
-    IpcMessage(IpcMessageType type, const std::string &sender, const std::string &receiver)
-        : sender(sender), receiver(receiver), type(type) {
+    IpcMessage(IpcMessageType type, const std::string &sender, const std::string &routingKey)
+        : sender(sender), routingKey(routingKey), type(type) {
     }
 
-    virtual ~IpcMessage() = default;
+    ~IpcMessage() = default;
 
-    virtual std::string serialize() const {
+    std::string serialize() const {
         std::ostringstream oss;
-        oss << sender << ":" << receiver << ":" << type.toString();
+        oss << sender << ":" << routingKey << ":" << type.toString();
         return oss.str();
     }
 
     static std::shared_ptr<IpcMessage> deserialize(const std::string &data) {
         std::istringstream iss(data);
-        std::string sender, receiver, typeStr;
+        std::string sender, routingKey, typeStr;
         std::getline(iss, sender, ':');
-        std::getline(iss, receiver, ':');
+        std::getline(iss, routingKey, ':');
         std::getline(iss, typeStr);
         IpcMessageType type = IpcMessageType::UNKNOWN; // Modify this to properly parse the typeStr into IpcMessageType
 
-        return std::make_shared<IpcMessage>(type, sender, receiver);
+        return std::make_shared<IpcMessage>(type, sender, routingKey);
     }
 
     std::string getSender() const { return sender; }
-    std::string getReceiver() const { return receiver; }
+    std::string getRoutingKey() const { return routingKey; }
     IpcMessageType getMessageType() const { return type; }
 
     std::string toString() const {
         return "type=" + getMessageType().toString() +
                "; sender=" + getSender() +
-               "; receiver=" + getReceiver() +
+               "; routingKey=" + getRoutingKey() +
                ";";
     }
 };
-
 
 #endif //BUSMESSAGE_HPP
