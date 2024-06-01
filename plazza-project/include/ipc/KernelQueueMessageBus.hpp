@@ -11,9 +11,14 @@
 #include <condition_variable>
 #include <atomic>
 
+typedef std::function<void(std::shared_ptr<IpcMessage> &message)> IpcCallbackFunction;
+typedef std::string IpcAddress;
+typedef std::string IpcRoutingKey;
+typedef std::unordered_map<IpcRoutingKey, IpcCallbackFunction> CallbackGroup;
+
 class KernelQueueMessageBus : public IMessageBus {
 protected:
-    std::unordered_map<std::string, std::function<void(std::shared_ptr<IpcMessage> &message)> > callbacks;
+    std::unordered_map<IpcAddress, CallbackGroup> callbackGroups;
 
 public:
     KernelQueueMessageBus() {
@@ -60,22 +65,22 @@ public:
             std::shared_ptr<IpcMessage> message = IpcMessage::deserialize(serializedMessage);
 
             // std::cout << "DESERIALIZED " + message->toString() << std::endl; // todo: remove tracing
-
+            std::string ipcAddress = message->getIpcAddress();
             std::string routingKey = message->getRoutingKey();
-            if (callbacks.find(routingKey) != callbacks.end()) {
-                callbacks[routingKey](message);
+
+            if (callbackGroups.find(ipcAddress) != callbackGroups.end()) {
+                CallbackGroup targetCallbackGroup = callbackGroups[ipcAddress];
+                if (targetCallbackGroup.find(routingKey) != targetCallbackGroup.end()) {
+                    targetCallbackGroup[routingKey](message);
+                }
+                // todo: logging ?
             }
         }
     }
 
-    void subscribe(const std::string &routingKey,
+    void subscribe(const std::string &ipcAddress, const std::string &routingKey,
                    std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
-        callbacks[routingKey] = callback;
-    }
-
-    void subscribe(std::shared_ptr<ISubscriber> subscriber) override {
-        callbacks[subscriber->getRoutingKey()] = std::bind(&ISubscriber::handleMessage, subscriber,
-                                                           std::placeholders::_1);
+        callbackGroups[ipcAddress][routingKey] = callback;
     }
 
     void dispose() override {

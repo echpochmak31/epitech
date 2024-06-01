@@ -4,8 +4,7 @@
 
 class IpcRoutingKeyHolder {
 public:
-    static const char* GetKitchenStatusRequest;
-    static const char* GetKitchenStatusResponse;
+    static const char* GetKitchenStatus;
     static const char* CloseKitchen;
 };
 

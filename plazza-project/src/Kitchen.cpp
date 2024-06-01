@@ -26,22 +26,20 @@ Kitchen::~Kitchen() {
 
 
 void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
-    if (message->getRoutingKey() == IpcRoutingKeyHolder::GetKitchenStatusRequest) {
-        if (message->getMessageType().getValue() == IpcMessageType::GET_KITCHEN_STATUS) {
-            std::shared_ptr<IpcMessage> statusMessage;
+    if (message->getMessageType().getValue() == IpcMessageType::GET_KITCHEN_STATUS) {
+        std::shared_ptr<IpcMessage> statusMessage;
 
-            if (_isAvailable) {
-                const auto responseMessage = std::make_shared<IpcMessage>(
-                    IpcMessageType::KITCHEN_AVAILABLE, ipcAddress, IpcRoutingKeyHolder::GetKitchenStatusResponse);
-
-                return messageBus->publish(responseMessage);
-            }
-
+        if (_isAvailable) {
             const auto responseMessage = std::make_shared<IpcMessage>(
-                IpcMessageType::KITCHEN_UNAVAILABLE, ipcAddress, IpcRoutingKeyHolder::GetKitchenStatusResponse);
+                IpcMessageType::KITCHEN_AVAILABLE, ipcAddress, IpcRoutingKeyHolder::GetKitchenStatus);
 
             return messageBus->publish(responseMessage);
         }
+
+        const auto responseMessage = std::make_shared<IpcMessage>(
+            IpcMessageType::KITCHEN_UNAVAILABLE, ipcAddress, IpcRoutingKeyHolder::GetKitchenStatus);
+
+        return messageBus->publish(responseMessage);
     }
 }
 
