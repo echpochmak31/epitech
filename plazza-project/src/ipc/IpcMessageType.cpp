@@ -2,18 +2,16 @@
 
 const std::string IpcMessageType::valueToString[] = {
     "UNKNOWN",
-    "CLOSE_KITCHEN",
-    "GET_KITCHEN_STATUS",
-    "KITCHEN_AVAILABLE",
-    "KITCHEN_UNAVAILABLE",
+    "CLOSE_KITCHEN_SIGNAL",
+    "GET_KITCHEN_STATUS_REQUEST",
+    "GET_KITCHEN_STATUS_RESPONSE",
 };
 
 const std::map<std::string, IpcMessageType::Value> IpcMessageType::stringToValue = {
     {"UNKNOWN", IpcMessageType::UNKNOWN},
-    {"CLOSE_KITCHEN", IpcMessageType::CLOSE_KITCHEN},
-    {"GET_KITCHEN_STATUS", IpcMessageType::GET_KITCHEN_STATUS},
-    {"KITCHEN_AVAILABLE", IpcMessageType::KITCHEN_AVAILABLE},
-    {"KITCHEN_UNAVAILABLE", IpcMessageType::KITCHEN_UNAVAILABLE},
+    {"CLOSE_KITCHEN_SIGNAL", IpcMessageType::CLOSE_KITCHEN_SIGNAL},
+    {"GET_KITCHEN_STATUS_REQUEST", IpcMessageType::GET_KITCHEN_STATUS_REQUEST},
+    {"GET_KITCHEN_STATUS_RESPONSE", IpcMessageType::GET_KITCHEN_STATUS_RESPONSE},
 };
 
 IpcMessageType::IpcMessageType(Value value) : value(value) {

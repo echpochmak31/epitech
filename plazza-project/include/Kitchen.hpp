@@ -21,6 +21,8 @@ protected:
     std::chrono::steady_clock::time_point lastActiveTime;
     std::thread monitoringThread;
 
+    int getAvailableCookNumber() const;
+
 public:
     Kitchen(std::string ipcAddress, std::shared_ptr<IMessageBus> messageBus, int numCooks, int idleTimeoutInSeconds);
 

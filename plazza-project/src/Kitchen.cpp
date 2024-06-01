@@ -2,6 +2,17 @@
 #include <iostream>
 
 #include "ipc/IpcRoutingKeyHolder.hpp"
+#include "ipc/Payloads.hpp"
+
+int Kitchen::getAvailableCookNumber() const {
+    int result = 0;
+    for (int i = 0; i < cooks.size(); i++) {
+        if (!cooks[i].isBusy()) {
+            result++;
+        }
+    }
+    return result;
+}
 
 Kitchen::Kitchen(std::string ipcAddress, std::shared_ptr<IMessageBus> messageBus, int numCooks,
                  int idleTimeoutInSeconds)
@@ -26,20 +37,20 @@ Kitchen::~Kitchen() {
 
 
 void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
-    if (message->getMessageType().getValue() == IpcMessageType::GET_KITCHEN_STATUS) {
-        std::shared_ptr<IpcMessage> statusMessage;
+    if (message->getMessageType().getValue() == IpcMessageType::GET_KITCHEN_STATUS_REQUEST) {
+        auto payload = KitchenStatusDto();
+        payload.available = _isAvailable;
+        payload.availableCookNumber = getAvailableCookNumber();
+        payload.totalCookNumber = static_cast<int>(cooks.size());
+        payload.updateTime = std::chrono::system_clock::now();
 
-        if (_isAvailable) {
-            const auto responseMessage = std::make_shared<IpcMessage>(
-                IpcMessageType::KITCHEN_AVAILABLE, ipcAddress, IpcRoutingKeyHolder::GetKitchenStatus);
+        auto response = std::make_shared<IpcMessage>(
+            IpcMessageType::GET_KITCHEN_STATUS_RESPONSE,
+            ipcAddress,
+            IpcRoutingKeyHolder::GetKitchenStatus,
+            payload.serialize());
 
-            return messageBus->publish(responseMessage);
-        }
-
-        const auto responseMessage = std::make_shared<IpcMessage>(
-            IpcMessageType::KITCHEN_UNAVAILABLE, ipcAddress, IpcRoutingKeyHolder::GetKitchenStatus);
-
-        return messageBus->publish(responseMessage);
+        return messageBus->publish(response);
     }
 }
 
@@ -64,10 +75,10 @@ void Kitchen::runMonitoringThread() {
         auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - lastActiveTime).count();
         if (idleDuration > idleTimeoutInSeconds) {
             _isAvailable = false;
-            auto message = std::make_shared<IpcMessage>(IpcMessageType::CLOSE_KITCHEN, ipcAddress,
-                                                        IpcRoutingKeyHolder::CloseKitchen);
+            auto message = std::make_shared<IpcMessage>(IpcMessageType::CLOSE_KITCHEN_SIGNAL, ipcAddress,
+                                                        IpcRoutingKeyHolder::CloseKitchen, ":"); // todo: remove hardcode
             messageBus->publish(message);
-            std::cout << "Kitchen sent CLOSE_KITCHEN message" << std::endl;
+            std::cout << "Kitchen sent CLOSE_KITCHEN_SIGNAL message" << std::endl;
             break;
         }
     }

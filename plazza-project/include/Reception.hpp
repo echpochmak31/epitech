@@ -4,27 +4,26 @@
 #include <memory>
 #include <vector>
 #include <string>
-#include <sys/types.h>
-#include "Pizza.hpp"
-#include "IPC.hpp"
+
+#include "Order.hpp"
+#include "ipc/IMessageBus.hpp"
 
 class Reception {
 private:
-    std::vector<pid_t> kitchenPIDs; // Store PIDs of kitchen processes
-    std::vector<std::shared_ptr<IPC>> kitchenPipes; // Store IPC objects for communication
+    std::shared_ptr<IMessageBus> messageBus;
+    std::vector<pid_t> kitchenPIDs;
     int numCooks;
     int replenishTime;
     float cookTimeMultiplier;
 
-public:
-    Reception(int cooks, int replenish, float multiplier);
+    static std::string makeKitchenIpcAddress(pid_t kitchenPid);
+    void bindMessageHandlers();
     void createNewKitchen();
-    void handleOrder(const std::string& order);
-    std::vector<Pizza> parseOrder(const std::string& order);
-    PizzaType getPizzaType(const std::string& type);
-    PizzaSize getPizzaSize(const std::string& size);
-    void printStatus();
-    void handleCommands(int readFd); // handle commands from the pipe
+    void handleOrder(Order& order);
+public:
+    Reception(std::shared_ptr<IMessageBus> messageBus, int cooks, int replenish, float multiplier);
+
+    void startHandlingOrders();
 };
 
 #endif //PLAZZA_PROJECT_RECEPTION_HPP
