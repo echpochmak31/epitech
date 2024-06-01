@@ -26,6 +26,11 @@ add_executable(plazza_project src/main.cpp
         include/Kitchen.hpp
         include/ipc/IpcRoutingKeyHolder.hpp
         src/ipc/IpcRoutingKeyHolder.cpp
+        include/Reception.hpp
+        include/Order.hpp
+        include/KitchenDetails.hpp
+        include/ipc/Payloads.hpp
+        src/ipc/Payloads.cpp
 )
 
 

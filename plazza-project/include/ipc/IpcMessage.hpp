@@ -11,39 +11,44 @@ protected:
     IpcMessageType type;
     std::string ipcAddress;
     std::string routingKey;
+    std::string serializedPayload;
 
 public:
-    IpcMessage(IpcMessageType type, const std::string &ipcAddress, const std::string &routingKey)
-        : ipcAddress(ipcAddress), routingKey(routingKey), type(type) {
+    IpcMessage(IpcMessageType type, const std::string &ipcAddress, const std::string &routingKey,
+               const std::string &serializedPayload)
+        : type(type), ipcAddress(ipcAddress), routingKey(routingKey), serializedPayload(serializedPayload) {
     }
 
     ~IpcMessage() = default;
 
-    std::string serialize() const {
+    virtual std::string serialize() const {
         std::ostringstream oss;
-        oss << ipcAddress << ":" << routingKey << ":" << type.toString();
+        oss << ipcAddress << ":" << routingKey << ":" << type.toString() << ":" << serializedPayload;
         return oss.str();
     }
 
     static std::shared_ptr<IpcMessage> deserialize(const std::string &data) {
         std::istringstream iss(data);
-        std::string ipcAddress, routingKey, typeStr;
+        std::string ipcAddress, routingKey, typeStr, serializedPayload;
         std::getline(iss, ipcAddress, ':');
         std::getline(iss, routingKey, ':');
-        std::getline(iss, typeStr);
+        std::getline(iss, typeStr, ':');
+        std::getline(iss, serializedPayload);
         IpcMessageType type = IpcMessageType::fromString(typeStr);
 
-        return std::make_shared<IpcMessage>(type, ipcAddress, routingKey);
+        return std::make_shared<IpcMessage>(type, ipcAddress, routingKey, serializedPayload);
     }
 
     std::string getIpcAddress() const { return ipcAddress; }
     std::string getRoutingKey() const { return routingKey; }
     IpcMessageType getMessageType() const { return type; }
+    std::string getSerializedPayload() const { return serializedPayload; }
 
-    std::string toString() const {
+    virtual std::string toString() const {
         return "type=" + getMessageType().toString() +
                "; ipcAddress=" + getIpcAddress() +
                "; routingKey=" + getRoutingKey() +
+               "; serializedPayload=" + getSerializedPayload() +
                ";";
     }
 };

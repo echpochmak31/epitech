@@ -1,3 +1,4 @@
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -6,7 +7,15 @@
 #include "ipc/CallbackSubscriber.hpp"
 #include "ipc/KernelQueueMessageBus.hpp"
 #include "ipc/IpcRoutingKeyHolder.hpp"
+#include "ipc/Payloads.hpp"
 
+std::string timePointToString(const std::chrono::system_clock::time_point &tp) {
+    std::time_t time = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm = *std::localtime(&time);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
+    return oss.str();
+}
 
 int main() {
     std::shared_ptr<IMessageBus> bus = std::make_shared<KernelQueueMessageBus>();
@@ -19,7 +28,16 @@ int main() {
             std::cout << "Invalid routing key\n";
             return;
         }
-        std::cout << "Kitchen status is: " + message->getMessageType().toString() << std::endl;
+        if (message->getMessageType().getValue() != IpcMessageType::GET_KITCHEN_STATUS_RESPONSE) {
+            std::cout << "Invalid message type\n";
+            return;
+        }
+        auto serializedPayload = message->getSerializedPayload();
+        auto payload = KitchenStatusDto::deserialize(serializedPayload);
+
+        std::cout << "Message is: " + message->toString() << std::endl;
+        std::cout << "Update time is: " << timePointToString(payload.updateTime) << std::endl;
+
     };
 
     auto onKitchenClosed = [](std::shared_ptr<IpcMessage> &message) {
@@ -38,8 +56,8 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::cout << "ok\n";
 
-    auto getStatusMessage = std::make_shared<IpcMessage>(IpcMessageType::GET_KITCHEN_STATUS, receptionIpcAddress,
-                                                         IpcRoutingKeyHolder::GetKitchenStatus);
+    auto getStatusMessage = std::make_shared<IpcMessage>(IpcMessageType::GET_KITCHEN_STATUS_REQUEST, receptionIpcAddress,
+                                                         IpcRoutingKeyHolder::GetKitchenStatus, ":");
     bus->publish(getStatusMessage);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
