@@ -49,17 +49,4 @@ public:
 };
 
 
-// class CountBusyCooksRequest : public IpcMessage {
-// public:
-//     CountBusyCooksRequest() { type = IpcMessageType::COUNT_BUSY_COOKS_REQUEST; }
-//     std::string serialize() const override;
-// };
-//
-// class CountBusyCooksResponse : public IpcMessage {
-// public:
-//     int busyCooks;
-//     CountBusyCooksResponse(int count) : busyCooks(count) { type = IpcMessageType::COUNT_BUSY_COOKS_RESPONSE; }
-//     std::string serialize() const override;
-// };
-
 #endif //BUSMESSAGE_HPP

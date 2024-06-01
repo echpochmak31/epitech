@@ -7,8 +7,12 @@
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
+#include <mutex>
+#include <condition_variable>
 
 class KernelQueueMessageBus : public IMessageBus {
+protected:
+    std::unordered_map<std::string, std::function<void(std::shared_ptr<IpcMessage> &message)>> callbacks;
 public:
     KernelQueueMessageBus() {
         key = ftok("progfile", 65);
@@ -22,50 +26,43 @@ public:
         msgctl(msgid, IPC_RMID, nullptr);
     }
 
-    void send(const std::shared_ptr<IpcMessage> &message) override {
-        std::lock_guard<std::mutex> lock(mtx);
-        std::cout << message->toString() << std::endl; // todo: remove tracing
+    void send(const std::shared_ptr<IpcMessage>& message) override {
+        std::lock_guard<std::mutex> lock(mtx); // Lock for send operations
 
-        if (registeredReceivers.find(message->getReceiver()) == registeredReceivers.end()) {
-            throw std::runtime_error(
-                "Receiver not registered for message: " + message->toString() );
-        }
+        std::cout << "SENDING " + message->toString() << std::endl;
+
         std::string serializedMessage = message->serialize();
         message_buf msg;
         msg.mtype = 1;
         snprintf(msg.mtext, sizeof(msg.mtext), "%s", serializedMessage.c_str());
 
         if (msgsnd(msgid, &msg, sizeof(msg.mtext), 0) == -1) {
-            throw std::runtime_error(
-                "Failed to send message: " + message->toString());
+            throw std::runtime_error("Failed to send message: " + message->toString());
         }
 
-        messageQueues[message->getReceiver()].push(message);
         cv.notify_all();
     }
 
-    std::shared_ptr<IpcMessage> receive(const std::string &receiver) override {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&] { return !messageQueues[receiver].empty(); });
+    void runMessageHandling() override {
+        while (true) {
+            message_buf msg;
+            if (msgrcv(msgid, &msg, sizeof(msg.mtext), 0, 0) == -1) {
+                throw std::runtime_error("Failed to receive message");
+            }
 
-        if (messageQueues[receiver].empty()) {
-            return nullptr;
+            std::string serializedMessage(msg.mtext);
+            std::shared_ptr<IpcMessage> message = IpcMessage::deserialize(serializedMessage);
+
+            std::cout << "DESERIALIZED " + message->toString() << std::endl;
+
+            std::string receiver = message->getReceiver();
+            if (callbacks.find(receiver) != callbacks.end()) {
+                callbacks[receiver](message);
+            }
         }
-
-        auto message = messageQueues[receiver].front();
-        messageQueues[receiver].pop();
-        return message;
     }
-
-    void registerReceiver(const std::string &receiver) override {
-        std::lock_guard<std::mutex> lock(mtx);
-        registeredReceivers.insert(receiver);
-    }
-
-    void unregisterReceiver(const std::string &receiver) override {
-        std::lock_guard<std::mutex> lock(mtx);
-        registeredReceivers.erase(receiver);
-        messageQueues.erase(receiver);
+    void subscribe(std::string &receiver, std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
+        callbacks[receiver] = callback;
     }
 
 private:
@@ -76,6 +73,8 @@ private:
 
     key_t key;
     int msgid;
+    std::mutex mtx; // Single mutex for all operations
+    std::condition_variable cv;
 };
 
 #endif // KERNELQUEUEMESSAGEBUS_HPP

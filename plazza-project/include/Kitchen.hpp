@@ -16,16 +16,17 @@ private:
     std::string receptionIpcAddress;
     std::shared_ptr<IMessageBus> messageBus;
     std::vector<Cook> cooks;
-    // IngredientStock stock;
 
     std::atomic<bool> _isAvailable;
     const int idleTimeoutInSeconds;
     std::chrono::steady_clock::time_point lastActiveTime;
     std::thread monitoringThread;
+    std::thread receivingThread; // Separate thread for receiving messages
 
-    // std::thread replenishThread;
     void dispose();
     void onMessageReceived(const std::shared_ptr<IpcMessage>& ipcMessage);
+    void runReceivingThread(); // Separate method for the receiving thread
+
 public:
     Kitchen(std::string kitchenIpcAddress, std::string receptionIpcAddress, std::shared_ptr<IMessageBus> messageBus, int numCooks, int replenishTime, int idleTimeoutInSeconds);
     ~Kitchen();
