@@ -22,42 +22,64 @@ int main() {
     std::string receptionIpcAddress = "reception";
     std::string kitchenIpcAddress = "kitchen1";
 
-    auto onKitchenStatusReceived = [&mainLogger](std::shared_ptr<IpcMessage> &message) {
-        if (message->getRoutingKey() != IpcRoutingKeyHolder::GetKitchenStatus) {
-            mainLogger->logError("Invalid routing key");
-            return;
-        }
+    auto orderedPizzaDto = OrderedPizzaDto();
+    orderedPizzaDto.orderId = 1;
+    orderedPizzaDto.type = PizzaType::Americana;
+    orderedPizzaDto.orderId = PizzaSize::M;
 
-        auto serializedPayload = message->getSerializedPayload();
-        auto payload = KitchenStatusDto::deserialize(serializedPayload);
-        mainLogger->logInfo("Message is: " + message->toString());
-        mainLogger->logInfo("Update time is: " + timePointToString(payload.updateTime));
+    auto onKitchenStatusReceived = [&mainLogger](std::shared_ptr<IpcMessage> &message) {
+        mainLogger->logWarning("Kitchen status: " + message->toString());
     };
 
     auto onKitchenClosed = [&mainLogger](std::shared_ptr<IpcMessage> &message) {
-        mainLogger->logInfo("Kitchen closed " + message->getIpcAddress());
+        mainLogger->logWarning("Kitchen closed " + message->getIpcAddress());
+    };
+
+    auto onOrderedPizzaReady = [&mainLogger, &orderedPizzaDto](std::shared_ptr<IpcMessage> &message) {
+        auto serializedPayload = message->getSerializedPayload();
+        auto payload = OrderedPizzaDto::deserialize(serializedPayload);
+        if (orderedPizzaDto.orderId != payload.orderId) {
+            mainLogger->logWarning("Ignoring...");
+        }
+        else {
+            mainLogger->logWarning("Pizza ready!");
+        }
     };
 
     auto kitchen1 = std::make_shared<Kitchen>(logger1, kitchenIpcAddress, bus, 2, cookingTimeMultiplier);
-
-
-    bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::GetKitchenStatus, onKitchenStatusReceived);
-
-    // subscribe on any message addressed to the kitchen
-    bus->subscribe(receptionIpcAddress, std::bind(&Kitchen::handleMessage, kitchen1, std::placeholders::_1));
-
-    bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::CloseKitchen, onKitchenClosed);
-
-
-    // Start the message handling in a separate thread
-    std::thread handlerThread(&IMessageBus::runMessageHandling, bus.get());
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     auto getStatusMessage = std::make_shared<IpcMessage>(
         IpcMessageType::REQUEST,
         receptionIpcAddress,
         IpcRoutingKeyHolder::GetKitchenStatus,
         DUMMY_PAYLOAD);
+
+    auto orderMessage = std::make_shared<IpcMessage>(
+        IpcMessageType::SIGNAL,
+        receptionIpcAddress,
+        IpcRoutingKeyHolder::AcceptOrderedPizza,
+        orderedPizzaDto.serialize());
+
+
+
+    // subscribe on any message addressed to the kitchen
+    bus->subscribe(receptionIpcAddress, std::bind(&Kitchen::handleMessage, kitchen1, std::placeholders::_1));
+
+    bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::CloseKitchen, onKitchenClosed);
+    bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::GetKitchenStatus, onKitchenStatusReceived);
+    bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::OrderedPizzaReady, onOrderedPizzaReady);
+
+    // Start the message handling in a separate thread
+    std::thread handlerThread(&IMessageBus::runMessageHandling, bus.get());
+
+    bus->publish(orderMessage);
+    bus->publish(orderMessage);
+    bus->publish(orderMessage);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    bus->publish(getStatusMessage);
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 
     bus->publish(getStatusMessage);
 

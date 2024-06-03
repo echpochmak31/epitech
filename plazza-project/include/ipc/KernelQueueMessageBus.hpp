@@ -26,7 +26,9 @@ public:
         key = ftok("progfile", 65);
         msgid = msgget(key, 0666 | IPC_CREAT);
         if (msgid == -1) {
-            throw std::runtime_error("Failed to create message queue");
+            auto errorMessage = "Failed to create kernel message queue";
+            logger->logError(errorMessage);
+            throw std::runtime_error(errorMessage);
         }
     }
 
@@ -45,7 +47,9 @@ public:
         snprintf(msg.mtext, sizeof(msg.mtext), "%s", serializedMessage.c_str());
 
         if (msgsnd(msgid, &msg, sizeof(msg.mtext), 0) == -1) {
-            throw std::runtime_error("Failed to send message: " + message->toString());
+            auto errorMessage = "Failed to send message: " + message->toString();
+            logger->logError(errorMessage);
+            throw std::runtime_error(errorMessage);
         }
 
         cv.notify_all();
@@ -85,7 +89,7 @@ public:
                 }
             }
 
-            logger->logDebug("No suitable callback was found for message: " + message->toString());
+            logger->logError("No suitable callback was found for message: " + message->toString());
         }
     }
 

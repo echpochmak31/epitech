@@ -20,7 +20,10 @@ public:
     // Pop an element from the queue
     T dequeue() {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this] { return !q.empty(); }); // Wait until the queue is not empty
+        if (q.empty())
+            throw std::runtime_error("Can not dequeue from the empty queue.");
+
+        // cv.wait(lock, [this] { return !q.empty(); }); // Wait until the queue is not empty // todo: remove
         T item = std::move(q.front());
         q.pop();
         return item;

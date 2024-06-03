@@ -23,7 +23,6 @@ Kitchen::Kitchen(
       lastActiveTime(std::chrono::steady_clock::now()),
       threadIsFree(numCooks, true),
       cookThreads(numCooks) {
-
     queuesHandlingThread = std::thread(&Kitchen::handleQueues, this);
     monitoringThread = std::thread(&Kitchen::monitorKitchenStatus, this);
 }
@@ -138,21 +137,22 @@ void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
 
             if (message->getRoutingKey() == IpcRoutingKeyHolder::GetKitchenStatus)
                 handleGetStatusRequest(message);
-            else if (message->getRoutingKey() == IpcRoutingKeyHolder::AcceptOrderedPizza)
-                handleAcceptOrderedPizzaRequest(message);
 
             break;
 
-        case IpcMessageType::RESPONSE:
-            logger->logError("FUCK");
+        case IpcMessageType::SIGNAL:
+            if (message->getRoutingKey() == IpcRoutingKeyHolder::AcceptOrderedPizza)
+                handleAcceptOrderedPizzaRequest(message);
+
+            break;
 
         default:
             std::ostringstream oss;
             oss << "Kitchen " << ipcAddress << " reports. Not supported IpcMessageType: "
                     << static_cast<int>(message->getMessageType());
 
-            auto logMessage = oss.str();
-            logger->logWarning(logMessage.c_str());
+            logger->logError(oss.str());
+
             break;
     }
 }
@@ -160,7 +160,7 @@ void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
 
 // Monitor the kitchen's idle status
 void Kitchen::monitorKitchenStatus() {
-    logger->logInfo("Kitchen monitoring thread started");
+    logger->logDebug("Kitchen monitoring thread started");
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(KITCHEN_MONITORING_DEALY_IN_MILLISECONDS));
@@ -177,11 +177,11 @@ void Kitchen::monitorKitchenStatus() {
 
             messageBus->publish(message);
 
-            logger->logInfo("Kitchen sent CloseKitchen Signal message");
+            logger->logDebug("Kitchen sent CloseKitchen Signal message");
             break;
         }
     }
-    logger->logInfo("Kitchen monitoring thread exiting");
+    logger->logDebug("Kitchen monitoring thread exiting");
 }
 
 int Kitchen::getAvailableCookNumber() const {
