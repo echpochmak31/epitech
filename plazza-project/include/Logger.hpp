@@ -1,9 +1,13 @@
 #ifndef LOGGER_HPP
 #define LOGGER_HPP
+#include <condition_variable>
+#include <mutex>
 #include <ostream>
 
 class Logger {
 private:
+    mutable std::mutex mtx;
+    std::condition_variable cv;
     std::ostream &os;
 
 public:

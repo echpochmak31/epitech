@@ -14,8 +14,8 @@
 int main() {
     float cookingTimeMultiplier = 1.0;
 
-    std::shared_ptr<Logger> mainLogger = std::make_shared<Logger>(std::cout);
-    std::shared_ptr<Logger> logger1 = std::make_shared<Logger>(std::cout);
+    auto mainLogger = std::make_shared<Logger>(std::cout);
+    auto logger1 = std::make_shared<Logger>(std::cout);
 
     std::shared_ptr<IMessageBus> bus = std::make_shared<KernelQueueMessageBus>(mainLogger);
 
