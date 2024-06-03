@@ -31,6 +31,8 @@ add_executable(plazza_project src/main.cpp
         include/Utils.hpp
         src/Utils.cpp
         src/RecipeBook.cpp
+        include/Order.hpp
+        include/KitchenParams.hpp
 )
 
 

@@ -62,6 +62,7 @@ void Kitchen::handleGetStatusRequest(std::shared_ptr<IpcMessage> &message) {
     payload.availableCookNumber = getAvailableCookNumber();
     payload.totalCookNumber = numCooks;
     payload.updateTime = std::chrono::system_clock::now();
+    payload.queuedPizzaNumber = static_cast<int>(orderedPizzas.size());
 
     auto response = std::make_shared<IpcMessage>(
         IpcMessageType::RESPONSE,

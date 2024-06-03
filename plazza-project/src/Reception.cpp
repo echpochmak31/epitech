@@ -1,23 +1,87 @@
 #include "Reception.hpp"
+#include "KitchenDetails.hpp"
 
-#include <unistd.h>
+// todo: refactor constructor
+Reception::Reception(ThreadSafeQueue<Order> &queuedOrders, KitchenParams kitchenParams,
+                     std::shared_ptr<IMessageBus> messageBus, std::string ipcAddress) {
+    receptionEnabled = true;
+}
 
-std::string Reception::makeKitchenIpcAddress(const pid_t kitchenPid) {
-    return "kitchen_pid_" + kitchenPid;
+Reception::~Reception() {
+    receptionEnabled = false;
+}
+
+
+void Reception::decomposeOrder(Order &order) {
+    for (int i = 0; i < order.totalPizzaNumber; i++) {
+        auto dto = OrderedPizzaDto();
+        dto.orderId = order.id;
+        dto.type = order.types[i];
+        dto.size = order.sizes[i];
+
+        queuedPizzas->enqueue(dto);
+    }
+}
+
+std::vector<std::pair<IpcAddress, KitchenStatusDto> > Reception::pollKitchens() {
+    // todo
+}
+
+
+void Reception::distributeOrderedPizzas() {
+    // todo
+}
+
+void Reception::assignOrderedPizza(OrderedPizzaDto dto, KitchenDetails &kitchenDetails) {
+    // todo
 }
 
 void Reception::bindMessageHandlers() {
-
+    // todo
 }
 
 void Reception::createNewKitchen() {
-
+    // todo
 }
 
+// thread A
+void Reception::runOrderedPizzasAssigning() {
+    std::vector<std::pair<IpcAddress, int> > targetKitchens; // address - number of pizzas ready to accept
 
-Reception::Reception(std::shared_ptr<IMessageBus> messageBus, int cooks, int replenish, float multiplier) {
+    while (receptionEnabled) {
+        pizzasLeftToCookByOrder.clear();
+        int totalPizzaCountReadyToAccept = 0;
+        int fixedQueuedPizzasSize = queuedPizzas->size();
+
+        auto statuses = pollKitchens();
+
+        for (const auto &[ipcAddress, status]: statuses) {
+            if (status.available) {
+                int count = status.totalCookNumber * MAX_ORDERED_PIZZAS_MULTIPLIER - status.queuedPizzaNumber;
+                totalPizzaCountReadyToAccept += count;
+                targetKitchens.push_back(std::make_pair(ipcAddress, count));
+            }
+        }
+
+        int deficiency = fixedQueuedPizzasSize - totalPizzaCountReadyToAccept;
+
+        if (deficiency > 0) {
+            // todo: allocate more kitchens
+            // todo: add new kitchens to targetKitchens
+        }
+
+        // todo: distribute
+    }
 }
 
-void Reception::startHandlingOrders() {
-}
+void Reception::runOrderHandling() {
+    while (receptionEnabled) {
+        if (queuedOrders->empty())
+            continue;
 
+        auto order = queuedOrders->dequeue();
+        orderdById[order.id] = order;
+        pizzasLeftToCookByOrder[order.id] = order.totalPizzaNumber;
+        decomposeOrder(order);
+    }
+}

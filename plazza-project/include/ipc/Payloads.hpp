@@ -9,6 +9,7 @@ public:
     bool available;
     int availableCookNumber;
     int totalCookNumber;
+    int queuedPizzaNumber;
     std::chrono::system_clock::time_point updateTime;
 
     std::string serialize() const;
