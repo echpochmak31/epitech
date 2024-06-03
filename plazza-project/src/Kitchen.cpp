@@ -148,7 +148,7 @@ void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
 
         default:
             std::ostringstream oss;
-            oss << "Kitchen " << ipcAddress << " repots. Not supported IpcMessageType: "
+            oss << "Kitchen " << ipcAddress << " reports. Not supported IpcMessageType: "
                     << static_cast<int>(message->getMessageType());
 
             auto logMessage = oss.str();

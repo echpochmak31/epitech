@@ -7,6 +7,14 @@ Logger::Logger(std::ostream &os) : os(os) {
 
 Logger::~Logger() = default;
 
+void Logger::logDebug(const char *message) {
+    os << "DEBUG\t\t" << timePointToString(std::chrono::system_clock::now()) << "\t\t" << message << '\n';
+}
+
+void Logger::logDebug(const std::string &message) {
+    logDebug(message.c_str());
+}
+
 void Logger::logInfo(const char *message) {
     os << "INFO\t\t" << timePointToString(std::chrono::system_clock::now()) << "\t\t" << message << '\n';
 }

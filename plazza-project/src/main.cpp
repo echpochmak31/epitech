@@ -11,30 +11,13 @@
 #include "ipc/Payloads.hpp"
 
 
-void test() {
-    OrderedPizzaDto pizzaOrder;
-    pizzaOrder.orderId = 1;
-    pizzaOrder.type = PizzaType::Regina;
-    pizzaOrder.size = PizzaSize::L;
-
-    // Serialize the object
-    std::string serializedData = pizzaOrder.serialize();
-    std::cout << "Serialized Data: " << serializedData << std::endl;
-
-    // Deserialize the object
-    OrderedPizzaDto deserializedPizzaOrder = OrderedPizzaDto::deserialize(serializedData);
-    std::cout << "Deserialized Data - Order ID: " << deserializedPizzaOrder.orderId
-            << ", Type: " << static_cast<int>(deserializedPizzaOrder.type)
-            << ", Size: " << static_cast<int>(deserializedPizzaOrder.size) << std::endl;
-}
-
 int main() {
-    // test();
     float cookingTimeMultiplier = 1.0;
 
-    std::shared_ptr<IMessageBus> bus = std::make_shared<KernelQueueMessageBus>();
     std::shared_ptr<Logger> mainLogger = std::make_shared<Logger>(std::cout);
     std::shared_ptr<Logger> logger1 = std::make_shared<Logger>(std::cout);
+
+    std::shared_ptr<IMessageBus> bus = std::make_shared<KernelQueueMessageBus>(mainLogger);
 
     std::string receptionIpcAddress = "reception";
     std::string kitchenIpcAddress = "kitchen1";
@@ -71,7 +54,7 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     auto getStatusMessage = std::make_shared<IpcMessage>(
-        IpcMessageType::RESPONSE,
+        IpcMessageType::REQUEST,
         receptionIpcAddress,
         IpcRoutingKeyHolder::GetKitchenStatus,
         DUMMY_PAYLOAD);

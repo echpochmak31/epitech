@@ -6,7 +6,6 @@
 #include <sys/msg.h>
 #include <stdexcept>
 #include <iostream>
-#include <cstring>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
@@ -18,11 +17,12 @@ typedef std::unordered_map<IpcRoutingKey, IpcCallbackFunction> CallbackGroup;
 
 class KernelQueueMessageBus : public IMessageBus {
 protected:
+    std::shared_ptr<Logger> logger;
     std::unordered_map<IpcAddress, IpcCallbackFunction> directCallbacks;
     std::unordered_map<IpcAddress, CallbackGroup> callbackGroups;
 
 public:
-    KernelQueueMessageBus() {
+    explicit KernelQueueMessageBus(std::shared_ptr<Logger> logger) : logger(logger) {
         key = ftok("progfile", 65);
         msgid = msgget(key, 0666 | IPC_CREAT);
         if (msgid == -1) {
@@ -35,10 +35,9 @@ public:
     }
 
     void publish(const std::shared_ptr<IpcMessage> &message) override {
-
         std::lock_guard<std::mutex> lock(mtx); // Lock for send operations
 
-        std::cout << "SENDING " + message->toString() << std::endl; // todo: remove tracing
+        logger->logDebug("Publishing message: " + message->toString());
 
         std::string serializedMessage = message->serialize();
         message_buf msg;
@@ -66,20 +65,27 @@ public:
             std::string serializedMessage(msg.mtext);
             std::shared_ptr<IpcMessage> message = IpcMessage::deserialize(serializedMessage);
 
-            // std::cout << "DESERIALIZED " + message->toString() << std::endl; // todo: remove tracing
             std::string ipcAddress = message->getIpcAddress();
             std::string routingKey = message->getRoutingKey();
 
             if (directCallbacks.find(ipcAddress) != directCallbacks.end()) {
+                logger->logDebug("P2P callback has been found for message: " + message->toString());
                 directCallbacks[ipcAddress](message);
+
+                continue;
             }
-            else if (callbackGroups.find(ipcAddress) != callbackGroups.end()) {
+
+            if (callbackGroups.find(ipcAddress) != callbackGroups.end()) {
                 CallbackGroup targetCallbackGroup = callbackGroups[ipcAddress];
                 if (targetCallbackGroup.find(routingKey) != targetCallbackGroup.end()) {
+                    logger->logDebug("Callback with routing key has been found for message: " + message->toString());
                     targetCallbackGroup[routingKey](message);
+
+                    continue;
                 }
-                // todo: logging ?
             }
+
+            logger->logDebug("No suitable callback was found for message: " + message->toString());
         }
     }
 

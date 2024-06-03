@@ -11,6 +11,10 @@ public:
 
     ~Logger();
 
+    void logDebug(const char *message);
+
+    void logDebug(const std::string &message);
+
     void logInfo(const char *message);
 
     void logInfo(const std::string &message);
