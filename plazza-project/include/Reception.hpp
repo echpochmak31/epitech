@@ -5,7 +5,6 @@
 #include <vector>
 #include <string>
 
-#include "Order.hpp"
 #include "ipc/IMessageBus.hpp"
 
 class Reception {
@@ -19,7 +18,6 @@ private:
     static std::string makeKitchenIpcAddress(pid_t kitchenPid);
     void bindMessageHandlers();
     void createNewKitchen();
-    void handleOrder(Order& order);
 public:
     Reception(std::shared_ptr<IMessageBus> messageBus, int cooks, int replenish, float multiplier);
 

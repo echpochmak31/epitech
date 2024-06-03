@@ -23,7 +23,7 @@ public:
 
     virtual std::string serialize() const {
         std::ostringstream oss;
-        oss << ipcAddress << ":" << routingKey << ":" << type.toString() << ":" << serializedPayload;
+        oss << ipcAddress << ":" << routingKey << ":" << static_cast<int>(type) << ":" << serializedPayload;
         return oss.str();
     }
 
@@ -34,7 +34,8 @@ public:
         std::getline(iss, routingKey, ':');
         std::getline(iss, typeStr, ':');
         std::getline(iss, serializedPayload);
-        IpcMessageType type = IpcMessageType::fromString(typeStr);
+        auto typeValue = static_cast<IpcMessageType>(std::stoi(typeStr));
+        auto type = IpcMessageType(typeValue);
 
         return std::make_shared<IpcMessage>(type, ipcAddress, routingKey, serializedPayload);
     }
@@ -45,11 +46,13 @@ public:
     std::string getSerializedPayload() const { return serializedPayload; }
 
     virtual std::string toString() const {
-        return "type=" + getMessageType().toString() +
-               "; ipcAddress=" + getIpcAddress() +
-               "; routingKey=" + getRoutingKey() +
-               "; serializedPayload=" + getSerializedPayload() +
-               ";";
+        std::ostringstream oss;
+        oss
+        << "type=" << static_cast<int>(type) << ";"
+        << "ipcAddress=" << getIpcAddress() << ";"
+        << "routingKey=" << getRoutingKey() << ";"
+        << "serializedPayload=" << getSerializedPayload() << ";";
+        return oss.str();
     }
 };
 

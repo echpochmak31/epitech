@@ -4,8 +4,11 @@
 
 class IpcRoutingKeyHolder {
 public:
-    static const char* GetKitchenStatus;
     static const char* CloseKitchen;
+    static const char* GetKitchenStatus;
+    static const char* AcceptOrderedPizza;
+    static const char* OrderedPizzaReady;
+    static const char* AllCooksAreBusy;
 };
 
 #endif //IPCROUTINGKEYHOLDER_HPP

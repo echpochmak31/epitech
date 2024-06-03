@@ -14,8 +14,6 @@ void Reception::createNewKitchen() {
 
 }
 
-void Reception::handleOrder(Order &order) {
-}
 
 Reception::Reception(std::shared_ptr<IMessageBus> messageBus, int cooks, int replenish, float multiplier) {
 }

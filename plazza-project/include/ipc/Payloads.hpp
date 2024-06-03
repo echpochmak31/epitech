@@ -2,6 +2,7 @@
 #define PAYLOADS_HPP
 #include <chrono>
 #include <string>
+#include "PizzaInfo.hpp"
 
 class KitchenStatusDto {
 public:
@@ -12,6 +13,17 @@ public:
 
     std::string serialize() const;
     static KitchenStatusDto deserialize(std::string& data);
+};
+
+
+class OrderedPizzaDto {
+public:
+    int orderId;
+    PizzaType type;
+    PizzaSize size;
+
+    std::string serialize() const;
+    static OrderedPizzaDto deserialize(std::string& data);
 };
 
 #endif //PAYLOADS_HPP
