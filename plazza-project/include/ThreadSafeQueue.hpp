@@ -27,13 +27,11 @@ public:
         return item;
     }
 
-    // Check if the queue is empty
     bool empty() const {
         std::lock_guard<std::mutex> lock(mtx);
         return q.empty();
     }
 
-    // Get current size
     size_t size() const {
         std::lock_guard<std::mutex> lock(mtx);
         return q.size();

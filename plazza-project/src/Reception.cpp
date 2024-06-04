@@ -10,7 +10,6 @@
 #include "Kitchen.hpp"
 #include "Utils.hpp"
 #include <semaphore.h>
-#include <fcntl.h>
 #include <sys/stat.h>
 
 size_t Reception::totalKitchensCreated = 0;
@@ -93,8 +92,6 @@ std::vector<std::pair<IpcAddress, KitchenStatusDto> > Reception::pollKitchens() 
         wargingMessage << "Some kitchens failed to respond. " << responses.size() << " out of "
                 << static_cast<int>(fixedKitchenNumber) << " expected responses has been received.";
         logger->logWarning(wargingMessage.str());
-
-        // todo: track faulty kitchens and close them after a while
     }
 
     return responses;
@@ -246,6 +243,10 @@ void Reception::run() {
     }
 }
 
+void Reception::stop() {
+    receptionEnabled = false;
+}
+
 void Reception::handleOrders() {
     while (!queuedOrders->empty()) {
         auto order = queuedOrders->dequeue();
@@ -300,8 +301,6 @@ std::vector<std::pair<IpcAddress, KitchenStatusDto>> Reception::closeIdleKitchen
             idleKitchens.insert(ipcAddress);
         }
     }
-
-    std::cerr << "BIBA " << idleKitchens.size() << "\n";
 
     for (auto pair : statuses) {
         if (idleKitchens.find(pair.first) != idleKitchens.end()) {

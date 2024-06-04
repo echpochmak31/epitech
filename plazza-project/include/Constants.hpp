@@ -1,15 +1,15 @@
 #ifndef CONSTANTS_HPP
 #define CONSTANTS_HPP
 
-constexpr auto ENABLE_DEBUG_LOGGING = false;
+#define DEBUG 0
 
-constexpr const char * DUMMY_PAYLOAD = ":";
-constexpr int MAX_ORDERED_PIZZAS_MULTIPLIER = 2;
-constexpr int INITIAL_INGREDIENT_COUNT = 5;
-constexpr int KITCHEN_MONITORING_DEALY_IN_MILLISECONDS = 100;
-constexpr int KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS = 5;
-constexpr const char * RECEPTION_DEFAULT_IPC_ADDRESS = "reception";
-constexpr int RECEPTION_INITIAL_POOL_SIZE = 2;
-constexpr int POLLING_TIMEOUT_IN_SECONDS = 2;
+constexpr auto  DUMMY_PAYLOAD = ":";
+constexpr auto MAX_ORDERED_PIZZAS_MULTIPLIER = 2;
+constexpr auto INITIAL_INGREDIENT_COUNT = 5;
+constexpr auto KITCHEN_MONITORING_DEALY_IN_MILLISECONDS = 100;
+constexpr auto KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS = 5;
+constexpr auto RECEPTION_DEFAULT_IPC_ADDRESS = "reception";
+constexpr auto RECEPTION_INITIAL_POOL_SIZE = 2;
+constexpr auto POLLING_TIMEOUT_IN_SECONDS = 2;
 
 #endif //CONSTANTS_HPP

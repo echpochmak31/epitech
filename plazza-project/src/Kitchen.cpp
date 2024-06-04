@@ -55,13 +55,7 @@ void Kitchen::cookPizza(OrderedPizzaDto dto, int cookIndex) {
         return;
     }
     std::ostringstream oss;
-    oss << "COOOOOK\t" << defaultCookingTime << "\t" << actualCookingTime << "\n";
-    // std::cerr << oss.str();
-
     std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(actualCookingTime)));
-
-    // std::cerr << "DOOONE\n";
-
     cookedPizzas.enqueue(dto);
     {
         std::lock_guard<std::mutex> lock(mtx);
@@ -154,7 +148,7 @@ void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
     else {
         std::ostringstream errorMessage;
         errorMessage << "Not supported routing key: " << message->getRoutingKey() << " for kitchen: " << ipcAddress;
-        logger->logError(errorMessage.str());
+        logger->logError(std::move(errorMessage).str());
     }
 }
 

@@ -1,5 +1,6 @@
 #ifndef KITCHENDETAILS_HPP
 #define KITCHENDETAILS_HPP
+
 #include <sched.h>
 #include <string>
 

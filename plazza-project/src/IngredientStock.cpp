@@ -55,5 +55,5 @@ std::string IngredientStock::getStatus() {
     for (const auto& item : stock) {
         status << static_cast<int>(item.first) << " - " << item.second << "; ";
     }
-    return status.str();
+    return std::move(status).str();;
 }

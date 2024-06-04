@@ -4,28 +4,28 @@
 float RecipeBook::CookingTimeMultiplier = 1.0;
 
 std::map<PizzaType, int> RecipeBook::bakingTimes = {
-    {Margarita, 1000},
-    {Regina, 2000},
-    {Americana, 2000},
-    {Fantasia, 4000},
+    {PizzaType::Margarita, 1000},
+    {PizzaType::Regina, 2000},
+    {PizzaType::Americana, 2000},
+    {PizzaType::Fantasia, 4000},
 };
 
 
 std::map<PizzaType, std::set<Ingredients> > RecipeBook::Recipes = {
     {
-        Margarita,
+        PizzaType::Margarita,
         {Ingredients::Dough, Ingredients::Tomato, Ingredients::Gruyere}
     },
     {
-        Regina,
+        PizzaType::Regina,
         {Ingredients::Dough, Ingredients::Tomato, Ingredients::Gruyere, Ingredients::Ham, Ingredients::Mushrooms}
     },
     {
-        Americana,
+        PizzaType::Americana,
         {Ingredients::Dough, Ingredients::Tomato, Ingredients::Gruyere, Ingredients::Steak}
     },
     {
-        Fantasia,
+        PizzaType::Fantasia,
         {
             Ingredients::Dough, Ingredients::Tomato, Ingredients::Eggplant, Ingredients::GoatCheese,
             Ingredients::ChiefLove

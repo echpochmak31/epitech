@@ -73,6 +73,8 @@ public:
 
     void run();
 
+    void stop();
+
     std::string getStatus();
 };
 

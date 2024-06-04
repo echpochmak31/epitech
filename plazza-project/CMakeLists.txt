@@ -9,7 +9,6 @@ add_executable(plazza_project src/main.cpp
         src/IngredientStock.cpp
         src/Kitchen.cpp
         src/Reception.cpp
-        include/ipc/IpcMessageType.hpp
         include/ipc/IpcMessage.hpp
         include/ipc/IMessageBus.hpp
         include/ipc/KernelQueueMessageBus.hpp
@@ -20,7 +19,6 @@ add_executable(plazza_project src/main.cpp
         include/Reception.hpp
         include/KitchenDetails.hpp
         include/ipc/Payloads.hpp
-        src/ipc/Payloads.cpp
         include/RecipeBook.hpp
         include/ThreadSafeQueue.hpp
         include/Constants.hpp
@@ -32,6 +30,13 @@ add_executable(plazza_project src/main.cpp
         include/Order.hpp
         include/KitchenParams.hpp
         include/Ingredients.hpp
+        src/ipc/IpcMessage.cpp
+        include/ipc/KitchenStatusDto.hpp
+        src/ipc/KitchenStatusDto.cpp
+        include/ipc/OrderedPizzaDto.hpp
+        src/ipc/OrderedPizzaDto.cpp
+        include/Parser.hpp
+        src/Parser.cpp
 )
 
 

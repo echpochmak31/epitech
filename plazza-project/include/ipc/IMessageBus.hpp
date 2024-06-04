@@ -23,6 +23,7 @@ public:
     virtual void dispose() = 0;
 
     virtual void pauseHandling() = 0;
+
     virtual void resumeHandling() = 0;
 };
 
