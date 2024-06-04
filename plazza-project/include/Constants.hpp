@@ -9,5 +9,6 @@ constexpr int KITCHEN_MONITORING_DEALY_IN_MILLISECONDS = 100;
 constexpr int KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS = 5;
 constexpr const char * RECEPTION_DEFAULT_IPC_ADDRESS = "reception";
 constexpr int RECEPTION_INITIAL_POOL_SIZE = 2;
+constexpr int POLLING_TIMEOUT_IN_SECONDS = 5;
 
 #endif //CONSTANTS_HPP

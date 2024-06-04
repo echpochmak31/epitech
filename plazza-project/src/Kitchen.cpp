@@ -92,7 +92,7 @@ void Kitchen::handleAcceptOrderedPizzaRequest(std::shared_ptr<IpcMessage> &messa
 }
 
 void Kitchen::handleQueues() {
-    while (true) {
+    while (!isClosing) {
         if (!cookedPizzas.empty()) {
             auto serializedCookedPizza = cookedPizzas.dequeue().serialize();
 
@@ -118,6 +118,7 @@ void Kitchen::assignOrderedPizza(OrderedPizzaDto orderedPizzaDto) {
 
     for (int i = 0; i < threadIsFree.size(); ++i) {
         if (threadIsFree[i]) {
+            lastActiveTime = std::chrono::steady_clock::now();
             threadIsFree[i] = false;
             cookThreads[i] = std::thread(&Kitchen::cookPizza, this, orderedPizzaDto, i); // Run cook thread
             cookThreads[i].detach();
@@ -158,32 +159,32 @@ void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
     }
 }
 
-
-// Monitor the kitchen's idle status
-void Kitchen::monitorKitchenStatus() {
-    logger->logDebug("Kitchen monitoring thread started");
-
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(KITCHEN_MONITORING_DEALY_IN_MILLISECONDS));
-        auto now = std::chrono::steady_clock::now();
-        auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - lastActiveTime).count();
-        if (idleDuration > KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS) {
-            isClosing = true;
-
-            auto message = std::make_shared<IpcMessage>(
-                IpcMessageType::SIGNAL,
-                ipcAddress,
-                IpcRoutingKeyHolder::CloseKitchen,
-                DUMMY_PAYLOAD);
-
-            messageBus->publish(message);
-
-            logger->logDebug("Kitchen sent CloseKitchen Signal message");
-            break;
-        }
-    }
-    logger->logDebug("Kitchen monitoring thread exiting");
-}
+//
+// // Monitor the kitchen's idle status
+// void Kitchen::monitorKitchenStatus() {
+//     logger->logDebug("Kitchen monitoring thread started");
+//
+//     while (!isClosing) {
+//         std::this_thread::sleep_for(std::chrono::milliseconds(KITCHEN_MONITORING_DEALY_IN_MILLISECONDS));
+//         auto now = std::chrono::steady_clock::now();
+//         auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - lastActiveTime).count();
+//         if (idleDuration > KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS) {
+//             isClosing = true;
+//
+//             auto message = std::make_shared<IpcMessage>(
+//                 IpcMessageType::SIGNAL,
+//                 ipcAddress,
+//                 IpcRoutingKeyHolder::CloseKitchen,
+//                 DUMMY_PAYLOAD);
+//
+//             messageBus->publish(message);
+//
+//             logger->logDebug("Kitchen sent CloseKitchen Signal message");
+//             break;
+//         }
+//     }
+//     logger->logDebug("Kitchen monitoring thread exiting");
+// }
 
 int Kitchen::getAvailableCookNumber() const {
     int result = 0;

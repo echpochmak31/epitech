@@ -9,6 +9,7 @@
 #include "Constants.hpp"
 #include "KitchenDetails.hpp"
 #include "KitchenParams.hpp"
+#include "Logger.hpp"
 #include "Order.hpp"
 #include "ThreadSafeQueue.hpp"
 #include "ipc/IMessageBus.hpp"
@@ -19,40 +20,51 @@ typedef std::string IpcAddress;
 
 class Reception {
 private:
+    std::mutex mtx;
+    std::condition_variable cv;
+    std::mutex ordersByIdMtx;
+    std::mutex pizzasLeftToCookByOrderMtx;
+
     std::atomic<bool> receptionEnabled;
+    std::shared_ptr<Logger> logger;
+
     KitchenParams kitchenParams;
     std::vector<KitchenDetails> kitchenPool;
     std::string ipcAddress;
     std::shared_ptr<IMessageBus> messageBus;
 
-    std::shared_ptr<ThreadSafeQueue<Order>>queuedOrders; // thread A
-    std::shared_ptr<ThreadSafeQueue<OrderedPizzaDto>> queuedPizzas;  // thread A, thread B
+    std::shared_ptr<ThreadSafeQueue<Order> > queuedOrders; // thread A
+    std::shared_ptr<ThreadSafeQueue<OrderedPizzaDto> > queuedPizzas; // thread A, thread B
 
-    std::unordered_map<OrderId, Order> orderdById; // thread A
-    std::unordered_map<OrderId, int> pizzasLeftToCookByOrder; // thread A, thread D
+    std::unordered_map<OrderId, Order> ordersById; // thread A, thread C
+    std::unordered_map<OrderId, int> pizzasLeftToCookByOrder; // thread A, thread C
+    std::shared_ptr<ThreadSafeQueue<Order>> executedOrders; // thread C
 
-    void decomposeOrder(Order &order);  // thread A
+    void decomposeOrder(Order &order); // thread A
 
-    std::vector<std::pair<IpcAddress, KitchenStatusDto>> pollKitchens(); // thread B
+    std::vector<std::pair<IpcAddress, KitchenStatusDto> > pollKitchens(); // thread B
 
-    void distributeOrderedPizzas(); // thread B
+    void distributeOrderedPizzas(std::vector<std::pair<IpcAddress, int> > targetKitchens); // thread B
 
-    void assignOrderedPizza(OrderedPizzaDto dto, KitchenDetails &kitchenDetails);
+    void assignPizza(IpcAddress kitchenIpcAddress, OrderedPizzaDto orderedPizzaDto); // thread B
+
+    // add it to pool, e.t.c.
+    KitchenDetails createNewKitchen(); // thread B
+
+    void closeKitchen(IpcAddress kitchenIpcAddress); // thread B
 
     void bindMessageHandlers();
 
-    void createNewKitchen(); // thread B
-
 public:
-    Reception(std::shared_ptr<ThreadSafeQueue<Order>> queuedOrders, KitchenParams kitchenParams, std::shared_ptr<IMessageBus> messageBus,
+    Reception(std::shared_ptr<ThreadSafeQueue<Order> > queuedOrders, KitchenParams kitchenParams,
+              std::shared_ptr<IMessageBus> messageBus,
               std::string ipcAddress = RECEPTION_DEFAULT_IPC_ADDRESS);
 
     ~Reception();
 
     void runOrderHandling(); // thread A
     void runOrderedPizzasAssigning(); // thread B
-    void listenKitchenSignals(); // thread C
-    void runOrderCheck(); // thread D
+    void runOrderCheck(); // thread C
 };
 
 #endif //PLAZZA_PROJECT_RECEPTION_HPP

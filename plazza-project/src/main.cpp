@@ -2,7 +2,7 @@
 #include <iostream>
 #include <memory>
 #include <thread>
-
+#include <math.h>
 #include "Constants.hpp"
 #include "Kitchen.hpp"
 #include "Utils.hpp"
@@ -11,6 +11,9 @@
 #include "ipc/Payloads.hpp"
 
 int main() {
+    int X = 5 / 2;
+    // int half = std::ceil(static_cast<double>(X) / 3);
+    std::cout << X << std::endl;
     // float cookingTimeMultiplier = 1.0;
     //
     // auto mainLogger = std::make_shared<Logger>(std::cout);

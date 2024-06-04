@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include "IpcMessageType.hpp"
+#include "Constants.hpp"
 
 class IpcMessage {
 protected:
@@ -15,7 +16,7 @@ protected:
 
 public:
     IpcMessage(IpcMessageType type, const std::string &ipcAddress, const std::string &routingKey,
-               const std::string &serializedPayload)
+               const std::string &serializedPayload = DUMMY_PAYLOAD)
         : type(type), ipcAddress(ipcAddress), routingKey(routingKey), serializedPayload(serializedPayload) {
     }
 

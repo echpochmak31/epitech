@@ -42,7 +42,6 @@ protected:
 
     void handleAcceptOrderedPizzaRequest(std::shared_ptr<IpcMessage> &message);
 
-
     void assignOrderedPizza(OrderedPizzaDto orderedPizzaDto);
 
     void handleGetStatusRequest(std::shared_ptr<IpcMessage> &message);
@@ -53,7 +52,7 @@ public:
 
     ~Kitchen();
 
-    void monitorKitchenStatus(); // must run in another thrad
+    // void monitorKitchenStatus(); // must run in another thrad
     void handleQueues(); // must run in another thrad
 
     void handleMessage(std::shared_ptr<IpcMessage> &message);
