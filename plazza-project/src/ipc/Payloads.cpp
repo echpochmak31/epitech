@@ -60,3 +60,16 @@ OrderedPizzaDto OrderedPizzaDto::deserialize(std::string &data) {
 
     return result;
 }
+
+std::ostream& operator<<(std::ostream& os, const OrderedPizzaDto& dto) {
+    os << dto.orderId << ' ' << static_cast<int>(dto.type) << ' ' << static_cast<int>(dto.size);
+    return os;
+}
+
+std::istream& operator>>(std::istream& is, OrderedPizzaDto& dto) {
+    int type, size;
+    is >> dto.orderId >> type >> size;
+    dto.type = static_cast<PizzaType>(type);
+    dto.size = static_cast<PizzaSize>(size);
+    return is;
+}

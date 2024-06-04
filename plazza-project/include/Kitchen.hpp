@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <condition_variable>
+#include <IngredientStock.hpp>
 #include <mutex>
 
 #include "KitchenParams.hpp"
@@ -22,6 +23,8 @@ protected:
     std::shared_ptr<IMessageBus> messageBus;
 
     KitchenParams params;
+
+    std::shared_ptr<IngredientStock> ingredientStock;
 
     ThreadSafeQueue<OrderedPizzaDto> orderedPizzas;
     ThreadSafeQueue<OrderedPizzaDto> cookedPizzas;

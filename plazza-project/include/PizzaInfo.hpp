@@ -1,10 +1,6 @@
 #ifndef PIZZAINFO_HPP
 #define PIZZAINFO_HPP
 
-#include <unordered_map>
-#include <stdexcept>
-
-
 enum PizzaType {
     Regina = 1,
     Margarita = 2,

@@ -9,8 +9,6 @@ add_executable(plazza_project src/main.cpp
         src/IngredientStock.cpp
         src/Kitchen.cpp
         src/Reception.cpp
-        include/KitchenPool.hpp
-        src/KitchenPool.cpp
         include/ipc/IpcMessageType.hpp
         include/ipc/IpcMessage.hpp
         include/ipc/IMessageBus.hpp
@@ -33,6 +31,7 @@ add_executable(plazza_project src/main.cpp
         src/RecipeBook.cpp
         include/Order.hpp
         include/KitchenParams.hpp
+        include/Ingredients.hpp
 )
 
 

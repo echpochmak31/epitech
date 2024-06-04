@@ -3,21 +3,30 @@
 
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
-#include <vector>
+#include <thread>
+#include <atomic>
+
+#include "Ingredients.hpp"
 
 class IngredientStock {
 private:
-    std::map<std::string, int> stock;
     std::mutex stockMutex;
-    int replenishTime;
+    std::map<Ingredients, int> stock;
+    int replenishTimeInMilliseconds;
+    std::atomic<bool> running;
+    std::thread replenishThread;
+
+    void replenish();
 
 public:
-    IngredientStock(int replenishTimeMs);
+    explicit IngredientStock(int replenishTimeInMilliseconds);
+    ~IngredientStock();
+
     void replenishStock();
-    bool useIngredients(const std::vector<std::string>& ingredients);
+    bool useIngredients(const std::set<Ingredients>& ingredients);
     std::string getStatus();
-    int getReplenishTime() const;
 };
 
 #endif //PLAZZA_PROJECT_INGREDIENTSTOCK_HPP

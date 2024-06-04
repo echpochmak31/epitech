@@ -26,6 +26,9 @@ public:
 
     std::string serialize() const;
     static OrderedPizzaDto deserialize(std::string& data);
+
+    friend std::ostream& operator<<(std::ostream& os, const OrderedPizzaDto& dto);
+    friend std::istream& operator>>(std::istream& is, OrderedPizzaDto& dto);
 };
 
 #endif //PAYLOADS_HPP

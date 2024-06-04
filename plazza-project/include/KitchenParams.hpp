@@ -4,7 +4,7 @@
 class KitchenParams {
 public:
     int cooksNumber;
-    int stockReplenishTimeInSeconds;
+    int stockReplenishTimeInMilliseconds;
     float cookingTimeMultiplier;
 };
 

@@ -21,6 +21,7 @@ Kitchen::Kitchen(
       lastActiveTime(std::chrono::steady_clock::now()),
       threadIsFree(params.cooksNumber, true),
       cookThreads(params.cooksNumber) {
+    ingredientStock = std::make_shared<IngredientStock>(params.stockReplenishTimeInMilliseconds);
     queuesHandlingThread = std::thread(&Kitchen::handleQueues, this);
 }
 
@@ -41,9 +42,24 @@ void Kitchen::cookPizza(OrderedPizzaDto dto, int cookIndex) {
     const auto defaultCookingTime = RecipeBook::getCookingTimeInMilliseconds(dto.type, dto.size);
     const auto actualCookingTime = static_cast<float>(defaultCookingTime) * params.cookingTimeMultiplier;
 
+    auto ingredients = RecipeBook::Recipes[dto.type];
+    auto success = ingredientStock->useIngredients(ingredients);
+
+    if (!success) {
+        logger->logWarning("Lack of ingredints on Kitchen with IPC address: " + ipcAddress);
+
+        orderedPizzas.enqueue(dto);
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            threadIsFree[cookIndex] = true;
+        }
+        return;
+    }
+
     std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(actualCookingTime)));
 
-    cookedPizzas.enqueue(dto); {
+    cookedPizzas.enqueue(dto);
+    {
         std::lock_guard<std::mutex> lock(mtx);
         threadIsFree[cookIndex] = true;
     }

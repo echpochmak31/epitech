@@ -1,51 +1,52 @@
 #include "IngredientStock.hpp"
-#include <thread>
+#include <chrono>
 #include <sstream>
+#include <thread>
 
-IngredientStock::IngredientStock(int replenishTimeMs) : replenishTime(replenishTimeMs) {
-    stock["dough"] = 5;
-    stock["tomato"] = 5;
-    stock["gruyere"] = 5;
-    stock["ham"] = 5;
-    stock["mushrooms"] = 5;
-    stock["steak"] = 5;
-    stock["eggplant"] = 5;
-    stock["goat_cheese"] = 5;
-    stock["chief_love"] = 5;
+IngredientStock::IngredientStock(int replenishTimeInMilliseconds)
+    : replenishTimeInMilliseconds(replenishTimeInMilliseconds), running(true) {
+    replenishThread = std::thread(&IngredientStock::replenish, this);
+}
+
+IngredientStock::~IngredientStock() {
+    running = false;
+    if (replenishThread.joinable()) {
+        replenishThread.join();
+    }
+}
+
+void IngredientStock::replenish() {
+    while (running) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(replenishTimeInMilliseconds));
+        replenishStock();
+    }
 }
 
 void IngredientStock::replenishStock() {
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(replenishTime));
-        std::lock_guard<std::mutex> lock(stockMutex);
-        for (auto &ingredient : stock) {
-            ingredient.second += 1;
-        }
+    std::lock_guard<std::mutex> lock(stockMutex);
+    for (auto& item : stock) {
+        item.second++;
     }
 }
 
-bool IngredientStock::useIngredients(const std::vector<std::string>& ingredients) {
+bool IngredientStock::useIngredients(const std::set<Ingredients>& ingredients) {
     std::lock_guard<std::mutex> lock(stockMutex);
     for (const auto& ingredient : ingredients) {
         if (stock[ingredient] <= 0) {
-            return false;
+            return false; // Not enough stock
         }
     }
     for (const auto& ingredient : ingredients) {
-        stock[ingredient] -= 1;
+        stock[ingredient]--;
     }
     return true;
 }
 
 std::string IngredientStock::getStatus() {
-    std::ostringstream status;
     std::lock_guard<std::mutex> lock(stockMutex);
-    for (const auto& ingredient : stock) {
-        status << "  " << ingredient.first << ": " << ingredient.second << "\n";
+    std::ostringstream status;
+    for (const auto& item : stock) {
+        status << static_cast<int>(item.first) << " - " << item.second << "; ";
     }
     return status.str();
-}
-
-int IngredientStock::getReplenishTime() const {
-    return replenishTime;
 }
