@@ -4,22 +4,25 @@
 std::string KitchenStatusDto::serialize() const {
     std::ostringstream oss;
     oss << available << ":"
-        << availableCookNumber << ":"
-        << totalCookNumber << ":"
-        << std::chrono::duration_cast<std::chrono::seconds>(updateTime.time_since_epoch()).count() << ":"
-        << queuedPizzaNumber << ":";
+            << availableCookNumber << ":"
+            << totalCookNumber << ":"
+            << std::chrono::duration_cast<std::chrono::seconds>(updateTime.time_since_epoch()).count() << ":"
+            << queuedPizzaNumber << ":"
+            << std::chrono::duration_cast<std::chrono::seconds>(lastActiveTime.time_since_epoch()).count() << ":";
     return oss.str();
 }
 
 KitchenStatusDto KitchenStatusDto::deserialize(std::string &data) {
     std::istringstream iss(data);
-    std::string availableStr, availableCookNumberStr, totalCookNumberStr, updateTimeStr, queuedPizzaNumberStr;
+    std::string availableStr, availableCookNumberStr, totalCookNumberStr, updateTimeStr, queuedPizzaNumberStr,
+            lastActiveTimeStr;
 
     std::getline(iss, availableStr, ':');
     std::getline(iss, availableCookNumberStr, ':');
     std::getline(iss, totalCookNumberStr, ':');
     std::getline(iss, updateTimeStr, ':');
-    std::getline(iss, queuedPizzaNumberStr);
+    std::getline(iss, queuedPizzaNumberStr, ';');
+    std::getline(iss, lastActiveTimeStr);
 
     auto result = KitchenStatusDto();
     result.available = (availableStr == "1");
@@ -27,17 +30,17 @@ KitchenStatusDto KitchenStatusDto::deserialize(std::string &data) {
     result.totalCookNumber = std::stoi(totalCookNumberStr);
     result.updateTime = std::chrono::system_clock::time_point(std::chrono::seconds(std::stoll(updateTimeStr)));
     result.queuedPizzaNumber = std::stoi(queuedPizzaNumberStr);
+    result.lastActiveTime = std::chrono::system_clock::time_point(std::chrono::seconds(std::stoll(lastActiveTimeStr)));
 
     return result;
 }
 
 
-
 std::string OrderedPizzaDto::serialize() const {
     std::ostringstream oss;
     oss << orderId << ":"
-        << static_cast<int>(type) << ":"
-        << static_cast<int>(size);
+            << static_cast<int>(type) << ":"
+            << static_cast<int>(size);
     return oss.str();
 }
 
@@ -57,5 +60,3 @@ OrderedPizzaDto OrderedPizzaDto::deserialize(std::string &data) {
 
     return result;
 }
-
-

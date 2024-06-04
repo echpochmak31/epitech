@@ -7,7 +7,7 @@
 
 std::string timePointToString(const std::chrono::system_clock::time_point &tp);
 
-std::string makeKitchenIpcAddress(pid_t kitchenPid);
+std::string makeKitchenIpcAddress(size_t kitchenNumber);
 
 std::string encodePizzaDetails(PizzaType type, PizzaSize size);
 

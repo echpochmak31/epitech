@@ -11,27 +11,22 @@ Kitchen::Kitchen(
     std::shared_ptr<Logger> logger,
     std::string ipcAddress,
     std::shared_ptr<IMessageBus> messageBus,
-    int numCooks,
-    float cookingTimeMultiplier)
+    KitchenParams params)
 
     : logger(logger),
       ipcAddress(ipcAddress),
       messageBus(messageBus),
-      numCooks(numCooks),
-      cookingTimeMultiplier(cookingTimeMultiplier),
+      params(params),
       isClosing(false),
       lastActiveTime(std::chrono::steady_clock::now()),
-      threadIsFree(numCooks, true),
-      cookThreads(numCooks) {
+      threadIsFree(params.cooksNumber, true),
+      cookThreads(params.cooksNumber) {
     queuesHandlingThread = std::thread(&Kitchen::handleQueues, this);
-    monitoringThread = std::thread(&Kitchen::monitorKitchenStatus, this);
 }
 
 
 Kitchen::~Kitchen() {
-    if (monitoringThread.joinable()) {
-        monitoringThread.join();
-    }
+    isClosing = true;
     if (queuesHandlingThread.joinable()) {
         queuesHandlingThread.join();
     }
@@ -44,7 +39,7 @@ Kitchen::~Kitchen() {
 
 void Kitchen::cookPizza(OrderedPizzaDto dto, int cookIndex) {
     const auto defaultCookingTime = RecipeBook::getCookingTimeInMilliseconds(dto.type, dto.size);
-    const auto actualCookingTime = static_cast<float>(defaultCookingTime) * cookingTimeMultiplier;
+    const auto actualCookingTime = static_cast<float>(defaultCookingTime) * params.cookingTimeMultiplier;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(actualCookingTime)));
 
@@ -60,7 +55,7 @@ void Kitchen::handleGetStatusRequest(std::shared_ptr<IpcMessage> &message) {
     auto payload = KitchenStatusDto();
     payload.available = isClosing;
     payload.availableCookNumber = getAvailableCookNumber();
-    payload.totalCookNumber = numCooks;
+    payload.totalCookNumber = params.cooksNumber;
     payload.updateTime = std::chrono::system_clock::now();
     payload.queuedPizzaNumber = static_cast<int>(orderedPizzas.size());
 
@@ -76,14 +71,9 @@ void Kitchen::handleGetStatusRequest(std::shared_ptr<IpcMessage> &message) {
 void Kitchen::handleAcceptOrderedPizzaRequest(std::shared_ptr<IpcMessage> &message) {
     std::unique_lock<std::mutex> lock(mtx);
 
-    if (orderedPizzas.size() >= numCooks * MAX_ORDERED_PIZZAS_MULTIPLIER) {
-        auto signal = std::make_shared<IpcMessage>(
-            IpcMessageType::SIGNAL,
-            ipcAddress,
-            IpcRoutingKeyHolder::AllCooksAreBusy,
-            DUMMY_PAYLOAD);
-
-        messageBus->publish(signal);
+    if (orderedPizzas.size() >= params.cooksNumber * MAX_ORDERED_PIZZAS_MULTIPLIER) {
+        logger->logError(
+            "Amount of pizzas queued in Kitchen is more than it can handle. Kitchn IPC address: " + ipcAddress);
     }
 
     auto serializePayload = message->getSerializedPayload();
@@ -158,33 +148,6 @@ void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
             break;
     }
 }
-
-//
-// // Monitor the kitchen's idle status
-// void Kitchen::monitorKitchenStatus() {
-//     logger->logDebug("Kitchen monitoring thread started");
-//
-//     while (!isClosing) {
-//         std::this_thread::sleep_for(std::chrono::milliseconds(KITCHEN_MONITORING_DEALY_IN_MILLISECONDS));
-//         auto now = std::chrono::steady_clock::now();
-//         auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - lastActiveTime).count();
-//         if (idleDuration > KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS) {
-//             isClosing = true;
-//
-//             auto message = std::make_shared<IpcMessage>(
-//                 IpcMessageType::SIGNAL,
-//                 ipcAddress,
-//                 IpcRoutingKeyHolder::CloseKitchen,
-//                 DUMMY_PAYLOAD);
-//
-//             messageBus->publish(message);
-//
-//             logger->logDebug("Kitchen sent CloseKitchen Signal message");
-//             break;
-//         }
-//     }
-//     logger->logDebug("Kitchen monitoring thread exiting");
-// }
 
 int Kitchen::getAvailableCookNumber() const {
     int result = 0;

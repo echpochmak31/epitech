@@ -20,8 +20,11 @@ typedef std::string IpcAddress;
 
 class Reception {
 private:
-    std::mutex mtx;
+    static size_t totalKitchensCreated;
+
     std::condition_variable cv;
+
+    std::mutex kitchenPoolMtx;
     std::mutex ordersByIdMtx;
     std::mutex pizzasLeftToCookByOrderMtx;
 
@@ -29,9 +32,9 @@ private:
     std::shared_ptr<Logger> logger;
 
     KitchenParams kitchenParams;
-    std::vector<KitchenDetails> kitchenPool;
-    std::string ipcAddress;
+    std::string receptionIpcAddress;
     std::shared_ptr<IMessageBus> messageBus;
+    std::vector<KitchenDetails> kitchenPool;
 
     std::shared_ptr<ThreadSafeQueue<Order> > queuedOrders; // thread A
     std::shared_ptr<ThreadSafeQueue<OrderedPizzaDto> > queuedPizzas; // thread A, thread B
@@ -40,7 +43,7 @@ private:
     std::unordered_map<OrderId, int> pizzasLeftToCookByOrder; // thread A, thread C
     std::shared_ptr<ThreadSafeQueue<Order>> executedOrders; // thread C
 
-    void decomposeOrder(Order &order); // thread A
+    void decomposeOrder(const Order &order) const; // thread A
 
     std::vector<std::pair<IpcAddress, KitchenStatusDto> > pollKitchens(); // thread B
 

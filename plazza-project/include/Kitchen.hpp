@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <mutex>
 
+#include "KitchenParams.hpp"
 #include "Logger.hpp"
 #include "ThreadSafeQueue.hpp"
 #include "ipc/IMessageBus.hpp"
@@ -20,8 +21,7 @@ protected:
     std::string ipcAddress;
     std::shared_ptr<IMessageBus> messageBus;
 
-    const int numCooks;
-    const float cookingTimeMultiplier;
+    KitchenParams params;
 
     ThreadSafeQueue<OrderedPizzaDto> orderedPizzas;
     ThreadSafeQueue<OrderedPizzaDto> cookedPizzas;
@@ -34,7 +34,6 @@ protected:
 
     std::atomic<bool> isClosing{};
     std::chrono::steady_clock::time_point lastActiveTime;
-    std::thread monitoringThread;
 
     int getAvailableCookNumber() const;
 
@@ -48,7 +47,7 @@ protected:
 
 public:
     Kitchen(std::shared_ptr<Logger> logger, std::string ipcAddress, std::shared_ptr<IMessageBus> messageBus,
-            int numCooks, float cookingTimeMultiplier);
+            KitchenParams params);
 
     ~Kitchen();
 

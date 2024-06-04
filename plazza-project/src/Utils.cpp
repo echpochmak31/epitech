@@ -8,8 +8,8 @@ std::string timePointToString(const std::chrono::system_clock::time_point &tp) {
     return oss.str();
 }
 
-std::string makeKitchenIpcAddress(const pid_t kitchenPid) {
-    return "kitchen_pid_" + kitchenPid;
+std::string makeKitchenIpcAddress(size_t kitchenNumber) {
+    return "kitchen_id_" + kitchenNumber;
 }
 
 std::string encodePizzaDetails(const PizzaType type, const PizzaSize size) {

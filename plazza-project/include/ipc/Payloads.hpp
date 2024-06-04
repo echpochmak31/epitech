@@ -11,7 +11,7 @@ public:
     int totalCookNumber;
     int queuedPizzaNumber;
     std::chrono::system_clock::time_point updateTime;
-    std::chrono::system_clock::time_point lastActiveTime; // todo
+    std::chrono::system_clock::time_point lastActiveTime;
 
     std::string serialize() const;
     static KitchenStatusDto deserialize(std::string& data);

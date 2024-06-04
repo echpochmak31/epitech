@@ -3,6 +3,13 @@
 #include "ipc/IpcRoutingKeyHolder.hpp"
 #include <cmath>
 #include <set>
+#include <signal.h>
+#include <unistd.h>
+
+#include "Kitchen.hpp"
+#include "Utils.hpp"
+
+size_t Reception::totalKitchensCreated = 0;
 
 // todo: refactor constructor
 // Reception::Reception(ThreadSafeQueue<Order> &queuedOrders, KitchenParams kitchenParams,
@@ -14,7 +21,9 @@ Reception::~Reception() {
     receptionEnabled = false;
 }
 
-void Reception::decomposeOrder(Order &order) {
+void Reception::decomposeOrder(const Order &order) const {
+    logger->logDebug("Decomposing order: " + order.id);
+
     for (int i = 0; i < order.totalPizzaNumber; i++) {
         auto dto = OrderedPizzaDto();
         dto.orderId = order.id;
@@ -26,7 +35,7 @@ void Reception::decomposeOrder(Order &order) {
 }
 
 std::vector<std::pair<IpcAddress, KitchenStatusDto> > Reception::pollKitchens() {
-    std::unique_lock<std::mutex> lock(mtx);
+    std::unique_lock<std::mutex> lock(kitchenPoolMtx);
 
     std::vector<std::pair<IpcAddress, KitchenStatusDto> > responses;
 
@@ -60,18 +69,17 @@ std::vector<std::pair<IpcAddress, KitchenStatusDto> > Reception::pollKitchens() 
         return responses.size() == fixedKitchenNumber;
     });
 
-    if (responses.size() == fixedKitchenNumber) {
-        return responses;
+    // Handle faulty requests
+    if (responses.size() != fixedKitchenNumber) {
+        std::ostringstream wargingMessage;
+        wargingMessage << "Some kitchens failed to respond. " << responses.size() << " out of "
+                << static_cast<int>(fixedKitchenNumber) << " expected responses has been received.";
+        logger->logWarning(wargingMessage.str());
+
+        // todo: track faulty kitchens and close them after a while
     }
 
-    // Handle faulty requests
-
-    std::ostringstream wargingMessage;
-    wargingMessage << "Some kitchens failed to respond. " << responses.size() << " out of "
-            << static_cast<int>(fixedKitchenNumber) << " expected responses has been received.";
-    logger->logWarning(wargingMessage.str());
-
-    // todo: track faulty kitchens and close them after a while
+    return responses;
 }
 
 void Reception::assignPizza(IpcAddress kitchenIpcAddress, OrderedPizzaDto orderedPizzaDto) {
@@ -114,11 +122,88 @@ void Reception::bindMessageHandlers() {
 }
 
 KitchenDetails Reception::createNewKitchen() {
-    // todo
+    int pid = fork();
+    if (pid < 0) {
+        auto errorMessage = "Failed to fork new kitchen process";
+        logger->logError(errorMessage);
+        throw std::runtime_error(errorMessage);
+    }
+
+    totalKitchensCreated++;
+    auto kitchenIpcAddress = makeKitchenIpcAddress(totalKitchensCreated);
+
+    // Child process
+    if (pid == 0) {
+        auto kitchen = std::make_shared<Kitchen>(logger, kitchenIpcAddress, messageBus, kitchenParams);
+
+        // Subscribe kitchen to message handling
+        messageBus->subscribe(receptionIpcAddress, std::bind(&Kitchen::handleMessage, kitchen, std::placeholders::_1));
+
+        exit(0);
+    }
+
+    // Parent process
+    KitchenDetails kitchenDetails = {pid, kitchenIpcAddress};
+    {
+        std::lock_guard<std::mutex> lock(kitchenPoolMtx);
+        kitchenPool.push_back(kitchenDetails);
+    }
+
+    auto onCloseKitchen = [this, kitchenIpcAddress](std::shared_ptr<IpcMessage> &message) {
+        logger->logInfo("Closing kitchen with IPC address: " + kitchenIpcAddress);
+        closeKitchen(kitchenIpcAddress);
+    };
+
+    auto onOrderedPizzaReady = [this, kitchenIpcAddress](std::shared_ptr<IpcMessage> &message) {
+        auto serializedPayload = message->getSerializedPayload();
+        auto payload = OrderedPizzaDto::deserialize(serializedPayload);
+        {
+            std::lock_guard<std::mutex> lockPizzasLeftToCookByOrder(pizzasLeftToCookByOrderMtx);
+            pizzasLeftToCookByOrder[payload.orderId]--;
+        }
+
+        logger->logDebug("Pizza is ready for Order with ID: " + payload.orderId);
+    };
+
+    // Subscribe reception to message handling
+    messageBus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::CloseKitchen, onCloseKitchen);
+    messageBus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::OrderedPizzaReady, onOrderedPizzaReady);
+
+    logger->logInfo("New kitchen created with PID: " + std::to_string(pid));
+
+    return kitchenDetails;
 }
 
 void Reception::closeKitchen(IpcAddress kitchenIpcAddress) {
-    // todo
+    std::lock_guard<std::mutex> lock(kitchenPoolMtx);
+
+    auto it = std::find_if(kitchenPool.begin(), kitchenPool.end(),
+                           [&kitchenIpcAddress](const KitchenDetails& kd) {
+                               return kd.IpcAddress == kitchenIpcAddress;
+                           });
+
+    if (it != kitchenPool.end()) {
+        pid_t pid = it->Pid;
+
+        // Kill the child process
+        if (kill(pid, SIGTERM) == -1) {
+            auto errorMessage = "Failed to terminate kitchen process with PID: " + std::to_string(pid);
+            logger->logError(errorMessage);
+            throw std::runtime_error(errorMessage);
+        }
+
+        // Remove the kitchen details from the pool
+        kitchenPool.erase(it);
+
+        // todo: Unsubscribe from the message bus
+        // messageBus->unsubscribe(kitchenIpcAddress);
+
+        logger->logDebug("Kitchen closed with PID: " + std::to_string(pid) + ", IPC Address: " + kitchenIpcAddress);
+    } else {
+        auto errorMessage = "Kitchen with IPC Address: " + kitchenIpcAddress + " not found";
+        logger->logError(errorMessage);
+        throw std::runtime_error(errorMessage);
+    }
 }
 
 void Reception::runOrderedPizzasAssigning() {
@@ -154,6 +239,7 @@ void Reception::runOrderedPizzasAssigning() {
 
         // Close idle kitchens
         for (auto idleKitchenIpcAddress: idleKitchens) {
+            logger->logInfo("Closing idle kitchen with IPC address: " + idleKitchenIpcAddress);
             closeKitchen(idleKitchenIpcAddress);
         }
 
@@ -193,7 +279,6 @@ void Reception::runOrderHandling() {
             continue;
 
         auto order = queuedOrders->dequeue();
-
         {
             std::lock_guard<std::mutex> lockOrdersById(ordersByIdMtx);
             ordersById[order.id] = order;
