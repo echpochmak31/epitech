@@ -36,7 +36,7 @@ protected:
     std::vector<std::thread> cookThreads;
 
     std::atomic<bool> isClosing{};
-    std::chrono::steady_clock::time_point lastActiveTime;
+    std::chrono::system_clock::time_point lastActiveTime;
 
     int getAvailableCookNumber() const;
 

@@ -9,52 +9,55 @@
 
 class IpcMessage {
 protected:
-    IpcMessageType type;
-    std::string ipcAddress;
+    std::string senderIpcAddress;
+    std::string receiverIpcAddress;
     std::string routingKey;
+    long dispatchTimeSinceEpoch;
     std::string serializedPayload;
 
 public:
-    IpcMessage(IpcMessageType type, const std::string &ipcAddress, const std::string &routingKey,
+    IpcMessage(const std::string &senderIpcAddress, const std::string &receiverIpcAddress,
+               const std::string &routingKey,
                const std::string &serializedPayload = DUMMY_PAYLOAD)
-        : type(type), ipcAddress(ipcAddress), routingKey(routingKey), serializedPayload(serializedPayload) {
+        : senderIpcAddress(senderIpcAddress), receiverIpcAddress(receiverIpcAddress), routingKey(routingKey),
+          serializedPayload(serializedPayload) {
+        dispatchTimeSinceEpoch = std::chrono::system_clock::now().time_since_epoch().count();
     }
 
     ~IpcMessage() = default;
 
     virtual std::string serialize() const {
         std::ostringstream oss;
-        oss << ipcAddress << ":" << routingKey << ":" << static_cast<int>(type) << ":" << serializedPayload;
+        oss << senderIpcAddress << ":"
+        << receiverIpcAddress << ":"
+        << routingKey << ":"
+        << dispatchTimeSinceEpoch << ":"
+        << serializedPayload;
         return oss.str();
     }
 
     static std::shared_ptr<IpcMessage> deserialize(const std::string &data) {
         std::istringstream iss(data);
-        std::string ipcAddress, routingKey, typeStr, serializedPayload;
-        std::getline(iss, ipcAddress, ':');
-        std::getline(iss, routingKey, ':');
-        std::getline(iss, typeStr, ':');
-        std::getline(iss, serializedPayload);
-        auto typeValue = static_cast<IpcMessageType>(std::stoi(typeStr));
-        auto type = IpcMessageType(typeValue);
+        std::string sender, receiver, routingKey, dispatchTimeStr, serializedPayload;
 
-        return std::make_shared<IpcMessage>(type, ipcAddress, routingKey, serializedPayload);
+        std::getline(iss, sender, ':');
+        std::getline(iss, receiver, ':');
+        std::getline(iss, routingKey, ':');
+        std::getline(iss, dispatchTimeStr, ':');
+        std::getline(iss, serializedPayload);
+
+        auto result = std::make_shared<IpcMessage>(sender, receiver, routingKey, serializedPayload);
+        result->dispatchTimeSinceEpoch = std::stol(dispatchTimeStr);
+
+        return result;
     }
 
-    std::string getIpcAddress() const { return ipcAddress; }
+    std::string getSender() const { return senderIpcAddress; }
+    std::string getReceiver() const { return receiverIpcAddress; }
     std::string getRoutingKey() const { return routingKey; }
-    IpcMessageType getMessageType() const { return type; }
+    long getDispatchTimeSinceEpoch() const { return dispatchTimeSinceEpoch; }
     std::string getSerializedPayload() const { return serializedPayload; }
 
-    virtual std::string toString() const {
-        std::ostringstream oss;
-        oss
-        << "type=" << static_cast<int>(type) << ";"
-        << "ipcAddress=" << getIpcAddress() << ";"
-        << "routingKey=" << getRoutingKey() << ";"
-        << "serializedPayload=" << getSerializedPayload() << ";";
-        return oss.str();
-    }
 };
 
 #endif //BUSMESSAGE_HPP

@@ -6,9 +6,9 @@ std::string KitchenStatusDto::serialize() const {
     oss << available << ":"
             << availableCookNumber << ":"
             << totalCookNumber << ":"
-            << std::chrono::duration_cast<std::chrono::seconds>(updateTime.time_since_epoch()).count() << ":"
+            << updateTimeSinceEpoch << ":"
             << queuedPizzaNumber << ":"
-            << std::chrono::duration_cast<std::chrono::seconds>(lastActiveTime.time_since_epoch()).count() << ":";
+            << lastActiveTimeSinceEpoch;
     return oss.str();
 }
 
@@ -21,16 +21,16 @@ KitchenStatusDto KitchenStatusDto::deserialize(std::string &data) {
     std::getline(iss, availableCookNumberStr, ':');
     std::getline(iss, totalCookNumberStr, ':');
     std::getline(iss, updateTimeStr, ':');
-    std::getline(iss, queuedPizzaNumberStr, ';');
+    std::getline(iss, queuedPizzaNumberStr, ':');
     std::getline(iss, lastActiveTimeStr);
 
     auto result = KitchenStatusDto();
     result.available = (availableStr == "1");
     result.availableCookNumber = std::stoi(availableCookNumberStr);
     result.totalCookNumber = std::stoi(totalCookNumberStr);
-    result.updateTime = std::chrono::system_clock::time_point(std::chrono::seconds(std::stoll(updateTimeStr)));
+    result.updateTimeSinceEpoch = std::stol(updateTimeStr);
     result.queuedPizzaNumber = std::stoi(queuedPizzaNumberStr);
-    result.lastActiveTime = std::chrono::system_clock::time_point(std::chrono::seconds(std::stoll(lastActiveTimeStr)));
+    result.lastActiveTimeSinceEpoch = std::stol(lastActiveTimeStr);
 
     return result;
 }

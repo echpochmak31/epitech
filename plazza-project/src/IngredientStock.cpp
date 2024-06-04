@@ -3,8 +3,15 @@
 #include <sstream>
 #include <thread>
 
+#include "Constants.hpp"
+#include "RecipeBook.hpp"
+
 IngredientStock::IngredientStock(int replenishTimeInMilliseconds)
     : replenishTimeInMilliseconds(replenishTimeInMilliseconds), running(true) {
+    for (int i = 0; i < static_cast<int>(Ingredients::COUNT); i++) {
+        auto ingredient = static_cast<Ingredients>(i);
+        stock[ingredient] = INITIAL_INGREDIENT_COUNT;
+    }
     replenishThread = std::thread(&IngredientStock::replenish, this);
 }
 

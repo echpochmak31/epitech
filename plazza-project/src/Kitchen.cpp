@@ -18,7 +18,7 @@ Kitchen::Kitchen(
       messageBus(messageBus),
       params(params),
       isClosing(false),
-      lastActiveTime(std::chrono::steady_clock::now()),
+      lastActiveTime(std::chrono::system_clock::now()),
       threadIsFree(params.cooksNumber, true),
       cookThreads(params.cooksNumber) {
     ingredientStock = std::make_shared<IngredientStock>(params.stockReplenishTimeInMilliseconds);
@@ -42,21 +42,25 @@ void Kitchen::cookPizza(OrderedPizzaDto dto, int cookIndex) {
     const auto defaultCookingTime = RecipeBook::getCookingTimeInMilliseconds(dto.type, dto.size);
     const auto actualCookingTime = static_cast<float>(defaultCookingTime) * params.cookingTimeMultiplier;
 
-    auto ingredients = RecipeBook::Recipes[dto.type];
+    auto ingredients = RecipeBook::getRecipe(dto.type);
     auto success = ingredientStock->useIngredients(ingredients);
 
     if (!success) {
         logger->logWarning("Lack of ingredints on Kitchen with IPC address: " + ipcAddress);
 
-        orderedPizzas.enqueue(dto);
-        {
+        orderedPizzas.enqueue(dto); {
             std::lock_guard<std::mutex> lock(mtx);
             threadIsFree[cookIndex] = true;
         }
         return;
     }
+    std::ostringstream oss;
+    oss << "COOOOOK\t" << defaultCookingTime << "\t" << actualCookingTime << "\n";
+    // std::cerr << oss.str();
 
     std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(actualCookingTime)));
+
+    // std::cerr << "DOOONE\n";
 
     cookedPizzas.enqueue(dto);
     {
@@ -72,12 +76,13 @@ void Kitchen::handleGetStatusRequest(std::shared_ptr<IpcMessage> &message) {
     payload.available = isClosing;
     payload.availableCookNumber = getAvailableCookNumber();
     payload.totalCookNumber = params.cooksNumber;
-    payload.updateTime = std::chrono::system_clock::now();
+    payload.updateTimeSinceEpoch = std::chrono::system_clock::now().time_since_epoch().count();
     payload.queuedPizzaNumber = static_cast<int>(orderedPizzas.size());
+    payload.lastActiveTimeSinceEpoch = lastActiveTime.time_since_epoch().count();
 
     auto response = std::make_shared<IpcMessage>(
-        IpcMessageType::RESPONSE,
         ipcAddress,
+        RECEPTION_DEFAULT_IPC_ADDRESS,
         IpcRoutingKeyHolder::GetKitchenStatus,
         payload.serialize());
 
@@ -103,8 +108,8 @@ void Kitchen::handleQueues() {
             auto serializedCookedPizza = cookedPizzas.dequeue().serialize();
 
             auto message = std::make_shared<IpcMessage>(
-                IpcMessageType::SIGNAL,
                 ipcAddress,
+                RECEPTION_DEFAULT_IPC_ADDRESS,
                 IpcRoutingKeyHolder::OrderedPizzaReady,
                 serializedCookedPizza);
 
@@ -124,7 +129,7 @@ void Kitchen::assignOrderedPizza(OrderedPizzaDto orderedPizzaDto) {
 
     for (int i = 0; i < threadIsFree.size(); ++i) {
         if (threadIsFree[i]) {
-            lastActiveTime = std::chrono::steady_clock::now();
+            lastActiveTime = std::chrono::system_clock::now();
             threadIsFree[i] = false;
             cookThreads[i] = std::thread(&Kitchen::cookPizza, this, orderedPizzaDto, i); // Run cook thread
             cookThreads[i].detach();
@@ -140,28 +145,16 @@ void Kitchen::assignOrderedPizza(OrderedPizzaDto orderedPizzaDto) {
 }
 
 void Kitchen::handleMessage(std::shared_ptr<IpcMessage> &message) {
-    switch (message->getMessageType()) {
-        case IpcMessageType::REQUEST:
-
-            if (message->getRoutingKey() == IpcRoutingKeyHolder::GetKitchenStatus)
-                handleGetStatusRequest(message);
-
-            break;
-
-        case IpcMessageType::SIGNAL:
-            if (message->getRoutingKey() == IpcRoutingKeyHolder::AcceptOrderedPizza)
-                handleAcceptOrderedPizzaRequest(message);
-
-            break;
-
-        default:
-            std::ostringstream oss;
-            oss << "Kitchen " << ipcAddress << " reports. Not supported IpcMessageType: "
-                    << static_cast<int>(message->getMessageType());
-
-            logger->logError(oss.str());
-
-            break;
+    if (message->getRoutingKey() == IpcRoutingKeyHolder::GetKitchenStatus) {
+        handleGetStatusRequest(message);
+    }
+    else if (message->getRoutingKey() == IpcRoutingKeyHolder::AcceptOrderedPizza) {
+        handleAcceptOrderedPizzaRequest(message);
+    }
+    else {
+        std::ostringstream errorMessage;
+        errorMessage << "Not supported routing key: " << message->getRoutingKey() << " for kitchen: " << ipcAddress;
+        logger->logError(errorMessage.str());
     }
 }
 

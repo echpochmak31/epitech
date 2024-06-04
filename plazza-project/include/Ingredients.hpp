@@ -11,6 +11,7 @@ enum class Ingredients {
     Eggplant,
     GoatCheese,
     ChiefLove,
+    COUNT
 };
 
 #endif //INGREDIENTS_HPP

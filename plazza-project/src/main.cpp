@@ -1,98 +1,163 @@
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <thread>
-#include "Constants.hpp"
-#include "Kitchen.hpp"
+
+#include "Reception.hpp"
+#include "RecipeBook.hpp"
 #include "Utils.hpp"
 #include "ipc/KernelQueueMessageBus.hpp"
-#include "ipc/IpcRoutingKeyHolder.hpp"
-#include "ipc/Payloads.hpp"
 
-int main() {
-    // float cookingTimeMultiplier = 1.0;
+// Helper function to convert string to PizzaType
+PizzaType stringToPizzaType(const std::string& str) {
+    std::string upperStr = str;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+
+    if (upperStr == "regina") return PizzaType::Regina;
+    else if (upperStr == "margarita") return PizzaType::Margarita;
+    else if (upperStr == "americana") return PizzaType::Americana;
+    else if (upperStr == "fantasia") return PizzaType::Fantasia;
+    else throw std::invalid_argument("Invalid pizza type: " + str);
+}
+
+// Helper function to convert string to PizzaSize
+PizzaSize stringToPizzaSize(const std::string& str) {
+    std::string upperStr = str;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+
+    if (upperStr == "S") return PizzaSize::S;
+    else if (upperStr == "M") return PizzaSize::M;
+    else if (upperStr == "L") return PizzaSize::L;
+    else if (upperStr == "XL") return PizzaSize::XL;
+    else if (upperStr == "XXL") return PizzaSize::XXL;
+    else throw std::invalid_argument("Invalid pizza size: " + str);
+}
+
+Order parseOrder(const std::string& input) {
+    std::unordered_map<std::string, PizzaType> pizzaTypeMap = {
+        {"regina", PizzaType::Regina},
+        {"margarita", PizzaType::Margarita},
+        {"americana", PizzaType::Americana},
+        {"fantasia", PizzaType::Fantasia}
+    };
+
+    std::unordered_map<std::string, PizzaSize> pizzaSizeMap = {
+        {"S", PizzaSize::S},
+        {"M", PizzaSize::M},
+        {"L", PizzaSize::L},
+        {"XL", PizzaSize::XL},
+        {"XXL", PizzaSize::XXL}
+    };
+
+    Order order;
+    order.id = ++orderCounter;
+    order.totalPizzaNumber = 0;
+
+    std::istringstream ss(input);
+    std::string pizzaOrder;
+    while (std::getline(ss, pizzaOrder, ';')) {
+        std::istringstream pizzaStream(pizzaOrder);
+        pizzaStream >> std::ws;
+        std::string typeStr, sizeStr, quantityStr;
+
+        std::getline(pizzaStream, typeStr, ' ');
+        std::getline(pizzaStream, sizeStr, ' ');
+        std::getline(pizzaStream, quantityStr, ' ');
+        int quantity = std::stoi(quantityStr.substr(1));
+
+        std::transform(typeStr.begin(), typeStr.end(), typeStr.begin(), ::tolower);
+        std::transform(sizeStr.begin(), sizeStr.end(), sizeStr.begin(), ::toupper);
+
+        PizzaType type = pizzaTypeMap[typeStr];
+        PizzaSize size = pizzaSizeMap[sizeStr];
+
+        order.types.push_back(type);
+        order.sizes.push_back(size);
+        order.quantities.push_back(quantity);
+        order.totalPizzaNumber += quantity;
+    }
+
+    return order;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        std::cerr << "Usage: " << argv[0] << " <cooking_time_multiplier> <num_cooks> <replenish_time>" << std::endl;
+        return 1;
+    }
+
+    float cookingTimeMultiplier = std::stof(argv[1]);
+    int cooksPerKitchen = std::stoi(argv[2]);
+    int replenishTimeInMilliseconds = std::stoi(argv[3]);
+
+    RecipeBook::CookingTimeMultiplier = cookingTimeMultiplier;
+
+    auto kitchenParams = KitchenParams();
+    kitchenParams.cookingTimeMultiplier = cookingTimeMultiplier;
+    kitchenParams.cooksNumber = cooksPerKitchen;
+    kitchenParams.stockReplenishTimeInMilliseconds = replenishTimeInMilliseconds;
+
+
+    // Logging to file
+
+    // std::ofstream logFile("./log.txt");
     //
-    // auto mainLogger = std::make_shared<Logger>(std::cout);
-    // auto logger1 = std::make_shared<Logger>(std::cout);
-    //
-    // std::shared_ptr<IMessageBus> bus = std::make_shared<KernelQueueMessageBus>(mainLogger);
-    //
-    // std::string receptionIpcAddress = "reception";
-    // std::string kitchenIpcAddress = "kitchen1";
-    //
-    // auto orderedPizzaDto = OrderedPizzaDto();
-    // orderedPizzaDto.orderId = 1;
-    // orderedPizzaDto.type = PizzaType::Americana;
-    // orderedPizzaDto.orderId = PizzaSize::M;
-    //
-    // auto onKitchenStatusReceived = [&mainLogger](std::shared_ptr<IpcMessage> &message) {
-    //     auto data = message->getSerializedPayload();
-    //     auto payload = KitchenStatusDto::deserialize(data);
-    //     mainLogger->logWarning("Kitchen status: " + message->toString() + " at " + timePointToString(payload.updateTime));
-    // };
-    //
-    // auto onKitchenClosed = [&mainLogger](std::shared_ptr<IpcMessage> &message) {
-    //     mainLogger->logWarning("Kitchen closed " + message->getIpcAddress());
-    // };
-    //
-    // auto onOrderedPizzaReady = [&mainLogger, &orderedPizzaDto](std::shared_ptr<IpcMessage> &message) {
-    //     auto serializedPayload = message->getSerializedPayload();
-    //     auto payload = OrderedPizzaDto::deserialize(serializedPayload);
-    //     if (orderedPizzaDto.orderId != payload.orderId) {
-    //         mainLogger->logWarning("Ignoring...");
-    //     }
-    //     else {
-    //         mainLogger->logWarning("Pizza ready!");
-    //     }
-    // };
-    //
-    // auto kitchen1 = std::make_shared<Kitchen>(logger1, kitchenIpcAddress, bus, 2, cookingTimeMultiplier);
-    //
-    // auto getStatusMessage = std::make_shared<IpcMessage>(
-    //     IpcMessageType::REQUEST,
-    //     receptionIpcAddress,
-    //     IpcRoutingKeyHolder::GetKitchenStatus,
-    //     DUMMY_PAYLOAD);
-    //
-    // auto orderMessage = std::make_shared<IpcMessage>(
-    //     IpcMessageType::SIGNAL,
-    //     receptionIpcAddress,
-    //     IpcRoutingKeyHolder::AcceptOrderedPizza,
-    //     orderedPizzaDto.serialize());
-    //
-    //
-    //
-    // // subscribe on any message addressed to the kitchen
-    // bus->subscribe(receptionIpcAddress, std::bind(&Kitchen::handleMessage, kitchen1, std::placeholders::_1));
-    //
-    // bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::CloseKitchen, onKitchenClosed);
-    // bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::GetKitchenStatus, onKitchenStatusReceived);
-    // bus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::OrderedPizzaReady, onOrderedPizzaReady);
-    //
-    // // Start the message handling in a separate thread
-    // std::thread handlerThread(&IMessageBus::runMessageHandling, bus.get());
-    // handlerThread.detach();
-    //
-    // bus->publish(orderMessage);
-    // bus->publish(orderMessage);
-    // bus->publish(orderMessage);
-    //
-    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // bus->publish(getStatusMessage);
-    //
-    // std::this_thread::sleep_for(std::chrono::seconds(10));
-    //
-    // bus->publish(getStatusMessage);
-    //
-    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //
-    // // Set the stop flag to true and notify the condition variable
-    // bus->dispose();
-    //
-    // if (handlerThread.joinable()) {
-    //     handlerThread.join();
+    // // Ensure the log file is open
+    // if (!logFile.is_open()) {
+    //     std::cerr << "Failed to open log file." << std::endl;
+    //     return 1;
     // }
-    // // exit(0);
+    // auto logger = std::make_shared<Logger>(logFile);
+
+    // Logging to stdout
+    auto logger = std::make_shared<Logger>(std::cout);
+
+    std::shared_ptr<IMessageBus> messageBus = std::make_shared<KernelQueueMessageBus>(logger);
+
+    auto queuedOrders = std::make_shared<ThreadSafeQueue<Order> >();
+
+    logger->logInfo("Let's go!");
+
+    auto unparsedOrders = std::make_shared<std::unordered_map<OrderId, std::string>>();
+
+    auto reception = std::make_shared<Reception>(logger, queuedOrders, kitchenParams, messageBus, unparsedOrders);
+    std::thread receptionThread(&Reception::run, reception);
+    // receptionThread.detach();
+
+    std::thread handlerThread(&IMessageBus::runMessageHandling, messageBus.get());
+    // handlerThread.detach();
+
+    std::string input;
+
+    while (true) {
+        std::cout << "Enter order or 'status' or 'exit': ";
+        std::getline(std::cin, input);
+
+        if (input == "status") {
+            std::cout << reception->getStatus() << std::endl;
+        } else if (input == "exit") {
+            break;
+        } else {
+            try {
+                Order order = parseOrder(input);
+                (*unparsedOrders)[order.id] = input;
+                queuedOrders->enqueue(order);
+            } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+            }
+        }
+    }
+
+    messageBus->dispose();
+
+    if (handlerThread.joinable()) {
+        handlerThread.join();
+    }
+
+    if (receptionThread.joinable()) {
+        receptionThread.join();
+    }
 
     return 0;
 }

@@ -1,18 +1,21 @@
 #ifndef RECIPEBOOK_HPP
 #define RECIPEBOOK_HPP
+
+#include "PizzaInfo.hpp"
+#include "Ingredients.hpp"
 #include <map>
 #include <set>
-#include <PizzaInfo.hpp>
-#include "Ingredients.hpp"
+#include <mutex>
 
 class RecipeBook {
+public:
+    static int getCookingTimeInMilliseconds(PizzaType pizzaType, PizzaSize pizzaSize);
+    static std::set<Ingredients> getRecipe(PizzaType pizzaType);  // Thread-safe method to get a recipe
+    static float CookingTimeMultiplier;
 private:
     static std::map<PizzaType, int> bakingTimes;
-public:
     static std::map<PizzaType, std::set<Ingredients>> Recipes;
-    static float CookingTimeMultiplier;
-    static int getCookingTimeInMilliseconds(PizzaType pizzaType, PizzaSize pizzaSize);
+    static std::mutex recipeMutex;
 };
 
-
-#endif //RECIPEBOOK_HPP
+#endif // RECIPEBOOK_HPP

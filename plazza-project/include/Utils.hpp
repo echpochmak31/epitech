@@ -11,4 +11,6 @@ std::string makeKitchenIpcAddress(size_t kitchenNumber);
 
 std::string encodePizzaDetails(PizzaType type, PizzaSize size);
 
+static int orderCounter = 0;
+
 #endif //UTILS_HPP

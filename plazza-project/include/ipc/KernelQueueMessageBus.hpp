@@ -18,9 +18,10 @@ typedef std::unordered_map<IpcRoutingKey, IpcCallbackFunction> CallbackGroup;
 class KernelQueueMessageBus : public IMessageBus {
 protected:
     std::shared_ptr<Logger> logger;
-    std::unordered_map<IpcAddress, IpcCallbackFunction> directCallbacks;
-    std::unordered_map<IpcAddress, CallbackGroup> callbackGroups;
+    std::shared_ptr<std::unordered_map<IpcAddress, IpcCallbackFunction>> directCallbacks;
+    std::shared_ptr<std::unordered_map<IpcAddress, CallbackGroup>> callbackGroups;
 
+    std::atomic<bool> isSleeping = false;
 public:
     explicit KernelQueueMessageBus(std::shared_ptr<Logger> logger) : logger(logger) {
         key = ftok("progfile", 65);
@@ -30,6 +31,8 @@ public:
             logger->logError(errorMessage);
             throw std::runtime_error(errorMessage);
         }
+        directCallbacks = std::make_shared<std::unordered_map<IpcAddress, IpcCallbackFunction>>();
+        callbackGroups = std::make_shared<std::unordered_map<IpcAddress, CallbackGroup>>();
     }
 
     ~KernelQueueMessageBus() {
@@ -39,7 +42,7 @@ public:
     void publish(const std::shared_ptr<IpcMessage> &message) override {
         std::lock_guard<std::mutex> lock(mtx); // Lock for send operations
 
-        logger->logDebug("Publishing message: " + message->toString());
+        logger->logDebug("Publishing message: " + message->serialize());
 
         std::string serializedMessage = message->serialize();
         message_buf msg;
@@ -47,7 +50,7 @@ public:
         snprintf(msg.mtext, sizeof(msg.mtext), "%s", serializedMessage.c_str());
 
         if (msgsnd(msgid, &msg, sizeof(msg.mtext), 0) == -1) {
-            auto errorMessage = "Failed to send message: " + message->toString();
+            auto errorMessage = "Failed to send message: " + message->serialize();
             logger->logError(errorMessage);
             throw std::runtime_error(errorMessage);
         }
@@ -57,6 +60,13 @@ public:
 
     void runMessageHandling() override {
         while (!stopFlag) {
+
+            // Lock and wait for condition variable if paused
+            {
+                std::unique_lock<std::mutex> lock(mtx);
+                cv.wait(lock, [this] { return !isSleeping.load(); });
+            }
+
             message_buf msg;
             if (msgrcv(msgid, &msg, sizeof(msg.mtext), 0, 0) == -1) {
                 if (errno == EINTR) {
@@ -69,42 +79,59 @@ public:
             std::string serializedMessage(msg.mtext);
             std::shared_ptr<IpcMessage> message = IpcMessage::deserialize(serializedMessage);
 
-            std::string ipcAddress = message->getIpcAddress();
+            std::string receiverIpcAddress = message->getReceiver();
             std::string routingKey = message->getRoutingKey();
 
-            if (directCallbacks.find(ipcAddress) != directCallbacks.end()) {
-                logger->logDebug("P2P callback has been found for message: " + message->toString());
-                directCallbacks[ipcAddress](message);
+            {
+                std::lock_guard<std::mutex> lock(callbackMtx); // Lock for access to directCallbacks and callbackGroups
 
-                continue;
-            }
-
-            if (callbackGroups.find(ipcAddress) != callbackGroups.end()) {
-                CallbackGroup targetCallbackGroup = callbackGroups[ipcAddress];
-                if (targetCallbackGroup.find(routingKey) != targetCallbackGroup.end()) {
-                    logger->logDebug("Callback with routing key has been found for message: " + message->toString());
-                    targetCallbackGroup[routingKey](message);
-
+                if (directCallbacks->find(receiverIpcAddress) != directCallbacks->end()) {
+                    logger->logDebug("P2P callback has been found for message: " + serializedMessage);
+                    (*directCallbacks)[receiverIpcAddress](message);
                     continue;
+                }
+
+                if (callbackGroups->find(receiverIpcAddress) != callbackGroups->end()) {
+                    CallbackGroup targetCallbackGroup = (*callbackGroups)[receiverIpcAddress];
+                    if (targetCallbackGroup.find(routingKey) != targetCallbackGroup.end()) {
+                        logger->logDebug("Callback with routing key has been found for message: " + serializedMessage);
+                        targetCallbackGroup[routingKey](message);
+                        continue;
+                    }
                 }
             }
 
-            logger->logError("No suitable callback was found for message: " + message->toString());
+            logger->logError("No suitable callback was found for message: " + serializedMessage);
         }
     }
 
-    void subscribe(const std::string &ipcAddress, const std::string &routingKey,
+    void subscribe(const std::string &receiverIpcAddress, const std::string &routingKey,
                    std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
-        callbackGroups[ipcAddress][routingKey] = callback;
+        std::lock_guard<std::mutex> lock(callbackMtx); // Lock for modifying callbackGroups
+        (*callbackGroups)[receiverIpcAddress][routingKey] = callback;
     }
 
-    void subscribe(const std::string &ipcAddress,
+    void subscribe(const std::string &receiverIpcAddress,
                    std::function<void(std::shared_ptr<IpcMessage> &message)> callback) override {
-        directCallbacks[ipcAddress] = callback;
+        std::lock_guard<std::mutex> lock(callbackMtx); // Lock for modifying directCallbacks
+        (*directCallbacks)[receiverIpcAddress] = callback;
     }
 
     void dispose() override {
         stopFlag = true;
+        cv.notify_all();
+    }
+
+    void pauseHandling() override {
+        std::lock_guard<std::mutex> lock(mtx);
+        isSleeping = true;
+    }
+
+    void resumeHandling() override {
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            isSleeping = false;
+        }
         cv.notify_all();
     }
 
@@ -117,6 +144,7 @@ private:
     key_t key;
     int msgid;
     std::mutex mtx;
+    std::mutex callbackMtx; // Mutex for protecting access to callback maps
     std::condition_variable cv;
     std::atomic<bool> stopFlag{false}; // Atomic flag to stop the message handling loop
 };

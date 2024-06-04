@@ -4,10 +4,10 @@
 float RecipeBook::CookingTimeMultiplier = 1.0;
 
 std::map<PizzaType, int> RecipeBook::bakingTimes = {
-    {Margarita, 1},
-    {Regina, 2},
-    {Americana, 2},
-    {Fantasia, 4},
+    {Margarita, 1000},
+    {Regina, 2000},
+    {Americana, 2000},
+    {Fantasia, 4000},
 };
 
 
@@ -33,8 +33,14 @@ std::map<PizzaType, std::set<Ingredients> > RecipeBook::Recipes = {
     },
 };
 
+std::mutex RecipeBook::recipeMutex;
 
 int RecipeBook::getCookingTimeInMilliseconds(PizzaType pizzaType, PizzaSize pizzaSize) {
-    auto timeInMilliseconds = static_cast<float>(bakingTimes[pizzaType]) * CookingTimeMultiplier;
-    return static_cast<int>(std::round(timeInMilliseconds));
+    std::lock_guard<std::mutex> lock(recipeMutex);
+    return bakingTimes[pizzaType];
+}
+
+std::set<Ingredients> RecipeBook::getRecipe(PizzaType pizzaType) {
+    std::lock_guard<std::mutex> lock(recipeMutex);
+    return Recipes[pizzaType];
 }

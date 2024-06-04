@@ -3,19 +3,34 @@
 #include "ipc/IpcRoutingKeyHolder.hpp"
 #include <cmath>
 #include <set>
-#include <signal.h>
+#include <csignal>
+#include <iostream>
 #include <unistd.h>
-
+#include <sys/wait.h>
 #include "Kitchen.hpp"
 #include "Utils.hpp"
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 size_t Reception::totalKitchensCreated = 0;
 
-// todo: refactor constructor
-// Reception::Reception(ThreadSafeQueue<Order> &queuedOrders, KitchenParams kitchenParams,
-//                      std::shared_ptr<IMessageBus> messageBus, std::string ipcAddress) {
-//     receptionEnabled = true;
-// }
+
+Reception::Reception(std::shared_ptr<Logger> logger,
+                     std::shared_ptr<ThreadSafeQueue<Order> > queuedOrders,
+                     KitchenParams kitchenParams,
+                     std::shared_ptr<IMessageBus> messageBus,
+                     std::shared_ptr<std::unordered_map<OrderId, std::string>> unparsedOrders) : receptionEnabled(true),
+    logger(logger),
+    kitchenParams(kitchenParams),
+    receptionIpcAddress(RECEPTION_DEFAULT_IPC_ADDRESS),
+    messageBus(messageBus),
+    queuedOrders(queuedOrders),
+    unparsedOrders(unparsedOrders) {
+
+    queuedPizzas = std::make_shared<ThreadSafeQueue<OrderedPizzaDto>>();
+    logger->logDebug("Reception has been instantiated");
+}
 
 Reception::~Reception() {
     receptionEnabled = false;
@@ -35,39 +50,42 @@ void Reception::decomposeOrder(const Order &order) const {
 }
 
 std::vector<std::pair<IpcAddress, KitchenStatusDto> > Reception::pollKitchens() {
-    std::unique_lock<std::mutex> lock(kitchenPoolMtx);
-
-    std::vector<std::pair<IpcAddress, KitchenStatusDto> > responses;
+    std::vector<std::pair<IpcAddress, KitchenStatusDto>> responses;
 
     auto onStatusReceived = [this, &responses](std::shared_ptr<IpcMessage> &message) {
-        if (message->getMessageType() != IpcMessageType::RESPONSE) {
-            auto errorMessage = "Invalid message type received. RESPONSE was expected, but actual is: "
-                                + static_cast<int>(message->getMessageType());
-            logger->logError(errorMessage);
+        if (message->getRoutingKey() != IpcRoutingKeyHolder::GetKitchenStatus) {
+            std::ostringstream errorMessage;
+            errorMessage << "Unexpected message received. Expected routing key is: "
+            << IpcRoutingKeyHolder::GetKitchenStatus << " Actual is: " << message->getRoutingKey();
+            logger->logError(errorMessage.str());
             return;
         }
         auto data = message->getSerializedPayload();
         auto payload = KitchenStatusDto::deserialize(data);
-        responses.push_back(std::make_pair(message->getIpcAddress(), payload));
+        responses.push_back(std::make_pair(message->getSender(), payload));
     };
 
     size_t fixedKitchenNumber = kitchenPool.size();
-    logger->logDebug("Start polling. Response is expected for this number of kitchens: " + fixedKitchenNumber);
+
+    messageBus->subscribe(receptionIpcAddress, IpcRoutingKeyHolder::GetKitchenStatus, onStatusReceived);
 
     for (const auto &[Pid, IpcAddress]: kitchenPool) {
-        messageBus->subscribe(IpcAddress, IpcRoutingKeyHolder::GetKitchenStatus, onStatusReceived);
-
         auto getStatusRequest = std::make_shared<IpcMessage>(
-            IpcMessageType::REQUEST,
+            receptionIpcAddress,
             IpcAddress,
             IpcRoutingKeyHolder::GetKitchenStatus);
 
         messageBus->publish(getStatusRequest);
     }
 
-    cv.wait_for(lock, std::chrono::seconds(POLLING_TIMEOUT_IN_SECONDS), [&responses, fixedKitchenNumber] {
-        return responses.size() == fixedKitchenNumber;
-    });
+    auto timeout = std::chrono::seconds(POLLING_TIMEOUT_IN_SECONDS);
+
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait_for(lock, timeout, [&responses, fixedKitchenNumber] {
+            return responses.size() == fixedKitchenNumber;
+        });
+    }
 
     // Handle faulty requests
     if (responses.size() != fixedKitchenNumber) {
@@ -84,7 +102,7 @@ std::vector<std::pair<IpcAddress, KitchenStatusDto> > Reception::pollKitchens() 
 
 void Reception::assignPizza(IpcAddress kitchenIpcAddress, OrderedPizzaDto orderedPizzaDto) {
     auto message = std::make_shared<IpcMessage>(
-        IpcMessageType::SIGNAL,
+        receptionIpcAddress,
         kitchenIpcAddress,
         IpcRoutingKeyHolder::AcceptOrderedPizza,
         orderedPizzaDto.serialize());
@@ -117,13 +135,18 @@ void Reception::distributeOrderedPizzas(std::vector<std::pair<IpcAddress, int> >
     }
 }
 
-void Reception::bindMessageHandlers() {
-    // todo
-}
-
 KitchenDetails Reception::createNewKitchen() {
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        auto errorMessage = "Failed to create pipe for synchronization";
+        logger->logError(errorMessage);
+        throw std::runtime_error(errorMessage);
+    }
+
     int pid = fork();
     if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
         auto errorMessage = "Failed to fork new kitchen process";
         logger->logError(errorMessage);
         throw std::runtime_error(errorMessage);
@@ -134,40 +157,52 @@ KitchenDetails Reception::createNewKitchen() {
 
     // Child process
     if (pid == 0) {
+        close(pipefd[0]); // Close read end of the pipe in the child
+
         auto kitchen = std::make_shared<Kitchen>(logger, kitchenIpcAddress, messageBus, kitchenParams);
 
-        // Subscribe kitchen to message handling
-        messageBus->subscribe(receptionIpcAddress, std::bind(&Kitchen::handleMessage, kitchen, std::placeholders::_1));
+        // Notify the parent that the kitchen is ready
+        write(pipefd[1], "1", 1);
+        close(pipefd[1]); // Close write end of the pipe in the child
 
         exit(0);
     }
 
+    close(pipefd[1]); // Close write end of the pipe in the parent
+
     // Parent process
     KitchenDetails kitchenDetails = {pid, kitchenIpcAddress};
-    {
-        std::lock_guard<std::mutex> lock(kitchenPoolMtx);
-        kitchenPool.push_back(kitchenDetails);
-    }
+    kitchenPool.push_back(kitchenDetails);
 
-    auto onCloseKitchen = [this, kitchenIpcAddress](std::shared_ptr<IpcMessage> &message) {
+    // Wait for the child to signal that it is ready
+    char buffer;
+    read(pipefd[0], &buffer, 1);
+    close(pipefd[0]); // Close read end of the pipe in the parent
+
+    auto onCloseKitchen = [this, kitchenIpcAddress](std::shared_ptr<IpcMessage>& message) {
         logger->logInfo("Closing kitchen with IPC address: " + kitchenIpcAddress);
         closeKitchen(kitchenIpcAddress);
     };
 
-    auto onOrderedPizzaReady = [this, kitchenIpcAddress](std::shared_ptr<IpcMessage> &message) {
+    auto onOrderedPizzaReady = [this, kitchenIpcAddress](std::shared_ptr<IpcMessage>& message) {
         auto serializedPayload = message->getSerializedPayload();
         auto payload = OrderedPizzaDto::deserialize(serializedPayload);
-        {
-            std::lock_guard<std::mutex> lockPizzasLeftToCookByOrder(pizzasLeftToCookByOrderMtx);
-            pizzasLeftToCookByOrder[payload.orderId]--;
-        }
+        pizzasLeftToCookByOrder[payload.orderId]--;
 
-        logger->logDebug("Pizza is ready for Order with ID: " + payload.orderId);
+        if (pizzasLeftToCookByOrder[payload.orderId] == 0) {
+            std::ostringstream orderReadyMessage;
+            orderReadyMessage << "Order with ID: " << payload.orderId << " is ready!";
+            logger->logInfo(orderReadyMessage.str());
+            handleExecutedOrder(payload.orderId);
+        }
     };
 
     // Subscribe reception to message handling
-    messageBus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::CloseKitchen, onCloseKitchen);
-    messageBus->subscribe(kitchenIpcAddress, IpcRoutingKeyHolder::OrderedPizzaReady, onOrderedPizzaReady);
+    messageBus->subscribe(receptionIpcAddress, IpcRoutingKeyHolder::CloseKitchen, onCloseKitchen);
+    messageBus->subscribe(receptionIpcAddress, IpcRoutingKeyHolder::OrderedPizzaReady, onOrderedPizzaReady);
+
+    // Subscribe kitchen to message handling
+    messageBus->subscribe(kitchenIpcAddress, std::bind(&Kitchen::handleMessage, std::make_shared<Kitchen>(logger, kitchenIpcAddress, messageBus, kitchenParams), std::placeholders::_1));
 
     logger->logInfo("New kitchen created with PID: " + std::to_string(pid));
 
@@ -175,10 +210,8 @@ KitchenDetails Reception::createNewKitchen() {
 }
 
 void Reception::closeKitchen(IpcAddress kitchenIpcAddress) {
-    std::lock_guard<std::mutex> lock(kitchenPoolMtx);
-
     auto it = std::find_if(kitchenPool.begin(), kitchenPool.end(),
-                           [&kitchenIpcAddress](const KitchenDetails& kd) {
+                           [&kitchenIpcAddress](const KitchenDetails &kd) {
                                return kd.IpcAddress == kitchenIpcAddress;
                            });
 
@@ -206,89 +239,119 @@ void Reception::closeKitchen(IpcAddress kitchenIpcAddress) {
     }
 }
 
-void Reception::runOrderedPizzasAssigning() {
-    std::vector<std::pair<IpcAddress, int> > targetKitchens; // address - number of pizzas ready to accept
-
+void Reception::run() {
     while (receptionEnabled) {
-        pizzasLeftToCookByOrder.clear();
-        int totalPizzaCountReadyToAccept = 0;
-        int fixedQueuedPizzasSize = queuedPizzas->size();
-
-        auto statuses = pollKitchens();
-        std::set<IpcAddress> idleKitchens;
-
-        for (const auto &[ipcAddress, status]: statuses) {
-            auto now = std::chrono::system_clock::now();
-            auto lastActiveTime = std::chrono::system_clock::from_time_t(
-                status.lastActiveTime.time_since_epoch().count());
-            auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(lastActiveTime - now).count();
-
-            if (idleDuration > KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS && status.queuedPizzaNumber == 0) {
-                idleKitchens.insert(ipcAddress);
-            }
-
-            // if the kitchen is not idle
-            if (idleKitchens.find(ipcAddress) == idleKitchens.end()) {
-                int count = status.totalCookNumber * MAX_ORDERED_PIZZAS_MULTIPLIER - status.queuedPizzaNumber;
-                if (count > 0) {
-                    totalPizzaCountReadyToAccept += count;
-                    targetKitchens.push_back(std::make_pair(ipcAddress, count));
-                }
-            }
-        }
-
-        // Close idle kitchens
-        for (auto idleKitchenIpcAddress: idleKitchens) {
-            logger->logInfo("Closing idle kitchen with IPC address: " + idleKitchenIpcAddress);
-            closeKitchen(idleKitchenIpcAddress);
-        }
-
-        int deficiency = fixedQueuedPizzasSize - totalPizzaCountReadyToAccept;
-
-        // Create new kitchens and add it to targets
-        if (deficiency > 0) {
-            int newKitchensCount = std::ceil(static_cast<double>(deficiency) / 3);
-            for (int i = 0; i < newKitchensCount; i++) {
-                auto kitchenDetails = createNewKitchen();
-                targetKitchens.push_back(std::make_pair(kitchenDetails.IpcAddress,
-                                                        kitchenParams.cooksNumber * MAX_ORDERED_PIZZAS_MULTIPLIER));
-            }
-        }
-
-        distributeOrderedPizzas(targetKitchens);
+        handleOrders();
+        assignPizzas();
     }
 }
 
-void Reception::runOrderCheck() {
-    while (receptionEnabled) {
-        for (auto [orderId, count]: pizzasLeftToCookByOrder) {
-            if (count == 0) {
-                std::lock_guard<std::mutex> lock(ordersByIdMtx);
-                auto executedOrder = ordersById[orderId];
-                executedOrders->enqueue(executedOrder);
-                pizzasLeftToCookByOrder.erase(orderId);
-                ordersById.erase(orderId);
-            }
-        }
-    }
-}
-
-void Reception::runOrderHandling() {
-    while (receptionEnabled) {
-        if (queuedOrders->empty())
-            continue;
-
+void Reception::handleOrders() {
+    while (!queuedOrders->empty()) {
         auto order = queuedOrders->dequeue();
-        {
-            std::lock_guard<std::mutex> lockOrdersById(ordersByIdMtx);
-            ordersById[order.id] = order;
-        }
-
-        {
-            std::lock_guard<std::mutex> lockPizzasLeftToCookByOrder(pizzasLeftToCookByOrderMtx);
-            pizzasLeftToCookByOrder[order.id] = order.totalPizzaNumber;
-        }
-
+        ordersById[order.id] = order;
+        pizzasLeftToCookByOrder[order.id] = order.totalPizzaNumber;
         decomposeOrder(order);
     }
+}
+
+void Reception::assignPizzas() {
+    std::vector<std::pair<IpcAddress, int> > targetKitchens; // address - number of pizzas ready to accept
+
+    int totalPizzaCountReadyToAccept = 0;
+    int fixedQueuedPizzasSize = static_cast<int>(queuedPizzas->size());
+
+    auto statuses = pollKitchens();
+
+    for (const auto &[ipcAddress, status]: statuses) {
+        int count = status.totalCookNumber * MAX_ORDERED_PIZZAS_MULTIPLIER - status.queuedPizzaNumber;
+        if (count > 0) {
+            totalPizzaCountReadyToAccept += count;
+            targetKitchens.push_back(std::make_pair(ipcAddress, count));
+        }
+    }
+
+    int deficiency = fixedQueuedPizzasSize - totalPizzaCountReadyToAccept;
+
+    // Create new kitchens and add it to targets
+    if (deficiency > 0) {
+        int newKitchensCount = std::ceil(static_cast<double>(deficiency) / (kitchenParams.cooksNumber * MAX_ORDERED_PIZZAS_MULTIPLIER));
+        for (int i = 0; i < newKitchensCount; i++) {
+            auto kitchenDetails = createNewKitchen();
+            targetKitchens.push_back(std::make_pair(kitchenDetails.IpcAddress,
+                                                    kitchenParams.cooksNumber * MAX_ORDERED_PIZZAS_MULTIPLIER));
+        }
+    }
+
+    distributeOrderedPizzas(targetKitchens);
+}
+
+std::vector<std::pair<IpcAddress, KitchenStatusDto>> Reception::closeIdleKitchens(std::vector<std::pair<IpcAddress, KitchenStatusDto>>& statuses) {
+    std::set<IpcAddress> idleKitchens;
+    std::vector<std::pair<IpcAddress, KitchenStatusDto>> nonIdleKitchenStatuses;
+
+    // Select idle kitchens
+    for (const auto &[ipcAddress, status]: statuses) {
+        auto now = std::chrono::system_clock::now();
+        auto lastActiveTime = std::chrono::system_clock::from_time_t(status.lastActiveTimeSinceEpoch);
+        auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(lastActiveTime - now).count();
+
+        if (idleDuration > KITCHEN_IDLE_TIME_LIMIT_IN_SECONDS && status.queuedPizzaNumber == 0) {
+            idleKitchens.insert(ipcAddress);
+        }
+    }
+
+    std::cerr << "BIBA " << idleKitchens.size() << "\n";
+
+    for (auto pair : statuses) {
+        if (idleKitchens.find(pair.first) != idleKitchens.end()) {
+            // Close idle kitchen
+            std::ostringstream infoMessage;
+            infoMessage << "Closing idle kitchen with IPC address: " << pair.first;
+            logger->logInfo(infoMessage.str());
+            closeKitchen(pair.first);
+        }
+        else {
+            // Add non-idle kitchen
+            nonIdleKitchenStatuses.push_back(pair);
+        }
+    }
+
+    return nonIdleKitchenStatuses;
+}
+
+void Reception::handleExecutedOrder(OrderId orderId) {
+    auto order = ordersById[orderId];
+    ordersById.erase(orderId);
+    pizzasLeftToCookByOrder.erase(orderId);
+
+    auto orderString = (*unparsedOrders)[orderId];
+    std::cout << "Order is ready: " << orderString << std::endl;
+}
+
+std::string Reception::getStatus() {
+    auto statuses = pollKitchens();
+    auto nonIdleStatuses =  closeIdleKitchens(statuses);
+
+    std::ostringstream oss;
+
+    oss << "Total kitchens: " << static_cast<int>(kitchenPool.size()) << '\n';
+
+    if (nonIdleStatuses.empty()) {
+        oss << "None of kitchens respond to polling\n";
+        return oss.str();
+    }
+
+    for (const auto &[ipcAddress, status]: nonIdleStatuses) {
+        std::chrono::system_clock::duration duration(status.lastActiveTimeSinceEpoch);
+        std::chrono::system_clock::time_point lastActiveTime(duration);
+
+        oss << "Status of kitchen: " << ipcAddress << ";\t";
+        oss << "Available cooks: " << status.availableCookNumber << " of " << status.totalCookNumber << ";\t";
+        oss << "Queued pizza number: " << status.queuedPizzaNumber << ";\t";
+        oss << "Last activity time: " << timePointToString(lastActiveTime) << ";\t";
+        oss << '\n';
+    }
+
+    return oss.str();
 }
