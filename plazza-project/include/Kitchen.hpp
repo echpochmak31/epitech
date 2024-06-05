@@ -1,14 +1,14 @@
 #ifndef PLAZZA_PROJECT_KITCHEN_HPP
 #define PLAZZA_PROJECT_KITCHEN_HPP
 
+#include <IngredientStock.hpp>
 #include <atomic>
-#include <vector>
-#include <memory>
-#include <thread>
 #include <chrono>
 #include <condition_variable>
-#include <IngredientStock.hpp>
+#include <memory>
 #include <mutex>
+#include <thread>
+#include <vector>
 
 #include "KitchenParams.hpp"
 #include "Logger.hpp"
@@ -17,47 +17,47 @@
 #include "ipc/Payloads.hpp"
 
 class Kitchen {
-protected:
-    std::shared_ptr<Logger> logger;
-    std::string ipcAddress;
-    std::shared_ptr<IMessageBus> messageBus;
+ protected:
+  std::shared_ptr<Logger> logger;
+  std::string ipcAddress;
+  std::shared_ptr<IMessageBus> messageBus;
 
-    KitchenParams params;
+  KitchenParams params;
 
-    std::shared_ptr<IngredientStock> ingredientStock;
+  std::shared_ptr<IngredientStock> ingredientStock;
 
-    ThreadSafeQueue<OrderedPizzaDto> orderedPizzas;
-    ThreadSafeQueue<OrderedPizzaDto> cookedPizzas;
-    std::thread queuesHandlingThread;
+  ThreadSafeQueue<OrderedPizzaDto> orderedPizzas;
+  ThreadSafeQueue<OrderedPizzaDto> cookedPizzas;
+  std::thread queuesHandlingThread;
 
-    std::mutex mtx;
-    std::condition_variable cv;
-    std::vector<bool> threadIsFree;
-    std::vector<std::thread> cookThreads;
+  std::mutex mtx;
+  std::condition_variable cv;
+  std::vector<bool> threadIsFree;
+  std::vector<std::thread> cookThreads;
 
-    std::atomic<bool> isClosing{};
-    std::chrono::system_clock::time_point lastActiveTime;
+  std::atomic<bool> isClosing{};
+  std::chrono::system_clock::time_point lastActiveTime;
 
-    int getAvailableCookNumber() const;
+  int getAvailableCookNumber() const;
 
-    void cookPizza(OrderedPizzaDto orderedPizzaDto, int cookIndex);
+  void cookPizza(OrderedPizzaDto orderedPizzaDto, int cookIndex);
 
-    void handleAcceptOrderedPizzaRequest(std::shared_ptr<IpcMessage> &message);
+  void handleAcceptOrderedPizzaRequest(std::shared_ptr<IpcMessage> &message);
 
-    void assignOrderedPizza(OrderedPizzaDto orderedPizzaDto);
+  void assignOrderedPizza(OrderedPizzaDto orderedPizzaDto);
 
-    void handleGetStatusRequest(std::shared_ptr<IpcMessage> &message);
+  void handleGetStatusRequest(std::shared_ptr<IpcMessage> &message);
 
-public:
-    Kitchen(std::shared_ptr<Logger> logger, std::string ipcAddress, std::shared_ptr<IMessageBus> messageBus,
-            KitchenParams params);
+ public:
+  Kitchen(std::shared_ptr<Logger> logger, std::string ipcAddress,
+          std::shared_ptr<IMessageBus> messageBus, KitchenParams params);
 
-    ~Kitchen();
+  ~Kitchen();
 
-    // void monitorKitchenStatus(); // must run in another thrad
-    void handleQueues(); // must run in another thrad
+  // void monitorKitchenStatus(); // must run in another thrad
+  void handleQueues();  // must run in another thrad
 
-    void handleMessage(std::shared_ptr<IpcMessage> &message);
+  void handleMessage(std::shared_ptr<IpcMessage> &message);
 };
 
-#endif //PLAZZA_PROJECT_KITCHEN_HPP
+#endif  // PLAZZA_PROJECT_KITCHEN_HPP

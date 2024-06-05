@@ -2,10 +2,10 @@
 #define KITCHENPARAMS_HPP
 
 class KitchenParams {
-public:
-    int cooksNumber;
-    int stockReplenishTimeInMilliseconds;
-    float cookingTimeMultiplier;
+ public:
+  int cooksNumber;
+  int stockReplenishTimeInMilliseconds;
+  float cookingTimeMultiplier;
 };
 
-#endif //KITCHENPARAMS_HPP
+#endif  // KITCHENPARAMS_HPP

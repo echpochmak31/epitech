@@ -2,16 +2,16 @@
 #define INGREDIENTS_HPP
 
 enum class Ingredients {
-    Dough,
-    Tomato,
-    Gruyere,
-    Ham,
-    Mushrooms,
-    Steak,
-    Eggplant,
-    GoatCheese,
-    ChiefLove,
-    COUNT
+  Dough,
+  Tomato,
+  Gruyere,
+  Ham,
+  Mushrooms,
+  Steak,
+  Eggplant,
+  GoatCheese,
+  ChiefLove,
+  COUNT
 };
 
-#endif //INGREDIENTS_HPP
+#endif  // INGREDIENTS_HPP

@@ -2,12 +2,13 @@
 #define KITCHENDETAILS_HPP
 
 #include <sched.h>
+
 #include <string>
 
 class KitchenDetails {
-public:
-    pid_t Pid;
-    std::string IpcAddress;
+ public:
+  pid_t Pid;
+  std::string IpcAddress;
 };
 
-#endif //KITCHENDETAILS_HPP
+#endif  // KITCHENDETAILS_HPP

@@ -4,4 +4,4 @@
 #include "KitchenStatusDto.hpp"
 #include "OrderedPizzaDto.hpp"
 
-#endif // PAYLOADS_HPP
+#endif  // PAYLOADS_HPP

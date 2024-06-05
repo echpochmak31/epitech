@@ -4,16 +4,16 @@
 #include <string>
 
 class KitchenStatusDto {
-public:
-    bool available;
-    int availableCookNumber;
-    int totalCookNumber;
-    int queuedPizzaNumber;
-    long updateTimeSinceEpoch;
-    long lastActiveTimeSinceEpoch;
+ public:
+  bool available;
+  int availableCookNumber;
+  int totalCookNumber;
+  int queuedPizzaNumber;
+  long updateTimeSinceEpoch;
+  long lastActiveTimeSinceEpoch;
 
-    std::string serialize() const;
-    static KitchenStatusDto deserialize(std::string& data);
+  std::string serialize() const;
+  static KitchenStatusDto deserialize(std::string& data);
 };
 
-#endif // KITCHENSTATUSDTO_HPP
+#endif  // KITCHENSTATUSDTO_HPP

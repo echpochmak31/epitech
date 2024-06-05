@@ -7,41 +7,42 @@
 
 template <typename T>
 class ThreadSafeQueue {
-public:
-    ThreadSafeQueue() = default;
+ public:
+  ThreadSafeQueue() = default;
 
-    // Push an element into the queue
-    void enqueue(T item) {
-        std::unique_lock<std::mutex> lock(mtx);
-        q.push(std::move(item));
-        cv.notify_one(); // Notify one waiting thread, if any
-    }
+  // Push an element into the queue
+  void enqueue(T item) {
+    std::unique_lock<std::mutex> lock(mtx);
+    q.push(std::move(item));
+    cv.notify_one();  // Notify one waiting thread, if any
+  }
 
-    // Pop an element from the queue
-    T dequeue() {
-        std::unique_lock<std::mutex> lock(mtx);
+  // Pop an element from the queue
+  T dequeue() {
+    std::unique_lock<std::mutex> lock(mtx);
 
-        cv.wait(lock, [this] { return !q.empty(); }); // Wait until the queue is not empty
-        T item = std::move(q.front());
-        q.pop();
-        return item;
-    }
+    cv.wait(lock, [this] {
+      return !q.empty();
+    });  // Wait until the queue is not empty
+    T item = std::move(q.front());
+    q.pop();
+    return item;
+  }
 
-    bool empty() const {
-        std::lock_guard<std::mutex> lock(mtx);
-        return q.empty();
-    }
+  bool empty() const {
+    std::lock_guard<std::mutex> lock(mtx);
+    return q.empty();
+  }
 
-    size_t size() const {
-        std::lock_guard<std::mutex> lock(mtx);
-        return q.size();
-    }
+  size_t size() const {
+    std::lock_guard<std::mutex> lock(mtx);
+    return q.size();
+  }
 
-private:
-    std::queue<T> q;
-    mutable std::mutex mtx;
-    std::condition_variable cv;
+ private:
+  std::queue<T> q;
+  mutable std::mutex mtx;
+  std::condition_variable cv;
 };
 
-
-#endif //THREADSAFEQUEUE_HPP
+#endif  // THREADSAFEQUEUE_HPP

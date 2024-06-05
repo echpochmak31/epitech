@@ -2,11 +2,11 @@
 #define IPCROUTINGKEYHOLDER_HPP
 
 class IpcRoutingKeyHolder {
-public:
-    static const char* CloseKitchen;
-    static const char* GetKitchenStatus;
-    static const char* AcceptOrderedPizza;
-    static const char* OrderedPizzaReady;
+ public:
+  static const char* CloseKitchen;
+  static const char* GetKitchenStatus;
+  static const char* AcceptOrderedPizza;
+  static const char* OrderedPizzaReady;
 };
 
-#endif //IPCROUTINGKEYHOLDER_HPP
+#endif  // IPCROUTINGKEYHOLDER_HPP
